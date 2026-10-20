@@ -1,0 +1,1911 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sensor Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --raised: #f1f0ec;
+  --text-1: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --accent: #2a78d6;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --shadow: 0 8px 24px rgba(11, 11, 11, 0.12);
+  --font: system-ui, -apple-system, "Segoe UI", "Leelawadee UI", "Noto Sans Thai", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --raised: #242422;
+    --text-1: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --raised: #242422;
+  --text-1: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--text-1); font: 14px/1.5 var(--font); }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 0 16px 40px; }
+h1 { font-size: 18px; margin: 0; font-weight: 650; }
+h2 { font-size: 15px; margin: 0; font-weight: 600; }
+h3 { font-size: 14px; margin: 20px 0 6px; font-weight: 600; }
+a { color: var(--accent); }
+button, select, input { font: inherit; color: inherit; }
+
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 14px 0 10px; }
+.brand { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
+.brand .sub { color: var(--text-2); font-size: 12px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.btn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; line-height: 1.3; }
+.btn:hover { background: var(--raised); }
+.btn.primary { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn-small { padding: 3px 8px; font-size: 12px; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); }
+:is(.btn, select, input, .tab, .seg button, .legend button, .plot .overlay):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--raised); font-size: 13px; color: var(--text-1); white-space: nowrap; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.pill[data-state="on"] .dot { background: var(--good); }
+.pill[data-state="busy"] .dot { background: var(--warning); }
+.pill[data-state="err"] .dot { background: var(--critical); }
+
+.notice { margin: 4px 0 12px; padding: 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--border); }
+.notice .ico { font-weight: 700; color: var(--serious); margin-right: 4px; }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--grid); overflow-x: auto; scrollbar-width: none; }
+.tab { padding: 8px 12px; border: 0; background: none; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+.tab:hover { color: var(--text-1); }
+.tab[aria-selected="true"] { color: var(--text-1); border-bottom-color: var(--accent); font-weight: 600; }
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; }
+.filters .label { color: var(--text-2); font-size: 13px; margin-right: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 5px 10px; cursor: pointer; color: var(--text-2); }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--text-1); font-weight: 600; }
+.meta { margin-left: auto; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.grid { display: grid; gap: 12px; }
+.cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); }
+.charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); margin-top: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.key { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--c); border-radius: 1px; flex: none; vertical-align: middle; }
+
+.mc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.mc-name { font-weight: 600; }
+.badge { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--raised); white-space: nowrap; }
+.badge .ico { font-weight: 700; }
+.badge[data-s="good"] .ico { color: var(--good); }
+.badge[data-s="warning"] .ico { color: var(--warning); }
+.badge[data-s="serious"] .ico { color: var(--serious); }
+.badge[data-s="critical"] .ico { color: var(--critical); }
+.badge[data-s="none"] .ico { color: var(--muted); }
+.mc-main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kv .k { font-size: 12px; color: var(--text-2); }
+.kv .v { font-size: 22px; font-weight: 600; line-height: 1.25; white-space: nowrap; }
+.kv .v .u { font-size: 12px; font-weight: 400; color: var(--text-2); margin-left: 3px; }
+.kv .unc { font-size: 11px; color: var(--muted); }
+.mc-derived { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 13px; }
+.mc-derived dt { color: var(--text-2); }
+.mc-derived dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mc-derived small { color: var(--muted); }
+.flag { color: var(--text-2); font-size: 11px; }
+.flag::before { content: "⚠ "; color: var(--warning); }
+.summary-list { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.summary-list dt { color: var(--text-2); }
+.summary-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+.chart-card { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 12px 8px; min-width: 0; }
+.chart-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 6px; }
+.chart-title { font-weight: 600; }
+.chart-unit { color: var(--text-2); font-weight: 400; margin-left: 6px; font-size: 12px; }
+.chart-note { color: var(--text-2); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
+.legend button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 2px 6px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.legend button:hover { background: var(--raised); }
+.legend button[aria-pressed="false"] { color: var(--muted); }
+.legend button[aria-pressed="false"] .key { opacity: 0.3; }
+.plot { position: relative; }
+.plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.plot .overlay { cursor: crosshair; touch-action: pan-y; }
+.empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; pointer-events: none; text-align: center; padding: 0 16px; }
+
+.table-wrap { overflow: auto; margin-top: 8px; max-height: 340px; }
+.tbl { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { padding: 5px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+.tbl th { color: var(--text-2); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
+.tbl :is(th, td):first-child { text-align: left; }
+.tbl td .key { margin-right: 6px; }
+.agree { margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+.agree b { color: var(--text-1); font-weight: 600; }
+.agree .ok { color: var(--good); font-weight: 700; }
+.agree .bad { color: var(--warning); font-weight: 700; }
+
+.tooltip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 130px; }
+.tt-h { color: var(--text-2); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.tt-r { display: flex; align-items: center; gap: 8px; }
+.tt-v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tt-n { color: var(--text-2); }
+
+.console { font: 12px/1.5 var(--mono); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; height: 440px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+.console .c-out { color: var(--text-2); }
+.console .c-sys { color: var(--muted); }
+.console-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.console-bar input[type="text"] { flex: 1 1 220px; font-family: var(--mono); }
+
+.prose { max-width: 920px; }
+.prose p, .prose li { margin: 6px 0; }
+.prose ul { padding-left: 20px; }
+.formula { font: 12.5px/1.6 var(--mono); background: var(--raised); padding: 8px 12px; border-radius: 8px; overflow-x: auto; white-space: pre; margin: 6px 0; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px 16px; margin-top: 10px; }
+.field label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 3px; }
+.field input, .field select { width: 100%; }
+.section-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 20px 0 10px; }
+.hint { color: var(--text-2); font-size: 12px; }
+[hidden] { display: none !important; }
+@media (max-width: 640px) {
+  .kv .v { font-size: 18px; }
+  .meta { margin-left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Sensor Dashboard</h1>
+      <span class="sub">ESP32 · AHT20 + BMP280 × 4 โมดูล</span>
+    </div>
+    <div class="row">
+      <label class="hint" for="source">เชื่อมต่อผ่าน</label>
+      <select id="source">
+        <option value="serial">USB (COM port)</option>
+        <option value="ble">Bluetooth (BLE)</option>
+        <option value="demo">Demo (ข้อมูลจำลอง)</option>
+      </select>
+      <button id="btnConnect" class="btn primary" type="button">เชื่อมต่อ</button>
+      <span id="status" class="pill" data-state="off" role="status"><span class="dot"></span><span id="statusText">ยังไม่เชื่อมต่อ</span></span>
+    </div>
+    <div class="row">
+      <button id="btnExport" class="btn" type="button">ดาวน์โหลด CSV</button>
+      <button id="btnClear" class="btn" type="button">ล้างข้อมูล</button>
+      <button id="btnTheme" class="btn" type="button">ธีม: อัตโนมัติ</button>
+    </div>
+  </header>
+  <div id="notice" class="notice" hidden></div>
+
+  <nav class="tabs" role="tablist" aria-label="หน้า">
+    <button class="tab" role="tab" data-tab="overview" aria-selected="true">ภาพรวม</button>
+    <button class="tab" role="tab" data-tab="derived" aria-selected="false">ค่าทางฟิสิกส์</button>
+    <button class="tab" role="tab" data-tab="stats" aria-selected="false">สถิติ</button>
+    <button class="tab" role="tab" data-tab="stability" aria-selected="false">ความเสถียร (Allan)</button>
+    <button class="tab" role="tab" data-tab="console" aria-selected="false">Console</button>
+    <button class="tab" role="tab" data-tab="about" aria-selected="false">สูตรและตั้งค่า</button>
+  </nav>
+
+  <div class="filters" id="filters">
+    <span><span class="label">ช่วงเวลา</span>
+      <span class="seg" id="segWindow">
+        <button type="button" data-v="300">5 นาที</button>
+        <button type="button" data-v="900">15 นาที</button>
+        <button type="button" data-v="3600">1 ชม.</button>
+        <button type="button" data-v="21600">6 ชม.</button>
+        <button type="button" data-v="0">ทั้งหมด</button>
+      </span>
+    </span>
+    <span id="modeWrap"><span class="label">กราฟแสดง</span>
+      <span class="seg" id="segMode">
+        <button type="button" data-v="abs">ค่าที่วัดได้</button>
+        <button type="button" data-v="dev">ต่างจากค่าเฉลี่ย 4 ตัว</button>
+      </span>
+    </span>
+    <span class="meta" id="meta">0 ตัวอย่าง</span>
+  </div>
+
+  <main>
+    <section data-panel="overview">
+      <div class="grid cards" id="cards"></div>
+      <div class="grid charts" id="ovCharts"></div>
+    </section>
+
+    <section data-panel="derived" hidden>
+      <p class="hint">คำนวณจาก T, RH ของ AHT20 และ P ของ BMP280 ในแต่ละโมดูล ดูสูตรและที่มาได้ที่แท็บ "สูตรและตั้งค่า"</p>
+      <div class="grid charts" id="dvCharts"></div>
+    </section>
+
+    <section data-panel="stats" hidden>
+      <p class="hint">คำนวณจากข้อมูลในช่วงเวลาที่เลือกด้านบน · u(เฉลี่ย) = SD/√n (Type A) · แนวโน้ม = ความชันเชิงเส้นต่อชั่วโมง · ความสอดคล้องระหว่างโมดูลเทียบกับความไม่แน่นอนตามสเปก (E<sub>n</sub>)</p>
+      <div class="grid charts" id="statTables"></div>
+    </section>
+
+    <section data-panel="stability" hidden>
+      <div class="row">
+        <label class="hint" for="adevKey">ปริมาณ</label>
+        <select id="adevKey"></select>
+        <span class="hint">ใช้ข้อมูลช่วงล่าสุดที่ต่อเนื่องในช่วงเวลาที่เลือก · ต้องมีอย่างน้อย 20 ตัวอย่าง</span>
+      </div>
+      <div class="grid charts" id="adevCharts"></div>
+      <div class="card" style="margin-top:12px">
+        <h2>สรุปต่อโมดูล</h2>
+        <div class="table-wrap" id="adevSummary"></div>
+        <p class="hint">Allan deviation σ(τ) บอกว่าค่าเฉลี่ยในช่วงเวลา τ แกว่งไปมาเท่าไร ถ้าเส้นลดลงด้วยความชัน −½ คือสัญญาณรบกวนแบบสุ่ม (เฉลี่ยนานขึ้นช่วยได้) ถ้าเส้นแบนคือขีดจำกัดของเซนเซอร์ ถ้าเส้นเริ่มชันขึ้นคือการเปลี่ยนแปลงจริงของสภาพห้องหรือ drift ค่าต่ำสุดบอกเวลาเฉลี่ยที่ให้ค่าเสถียรที่สุด</p>
+      </div>
+    </section>
+
+    <section data-panel="console" hidden>
+      <div class="console" id="console" aria-live="off"></div>
+      <div class="console-bar">
+        <input type="text" id="cmdInput" placeholder="พิมพ์คำสั่ง เช่น ?  หรือ I2000" aria-label="คำสั่งที่จะส่งไปยังบอร์ด">
+        <button class="btn" type="button" id="btnSend">ส่ง</button>
+        <label class="hint" for="intervalSel">อ่านค่าทุก</label>
+        <select id="intervalSel">
+          <option value="500">0.5 วินาที</option>
+          <option value="1000" selected>1 วินาที</option>
+          <option value="2000">2 วินาที</option>
+          <option value="5000">5 วินาที</option>
+          <option value="10000">10 วินาที</option>
+          <option value="30000">30 วินาที</option>
+          <option value="60000">60 วินาที</option>
+        </select>
+        <button class="btn" type="button" id="btnReset">รีเซ็ตบอร์ด</button>
+        <label class="hint"><input type="checkbox" id="showJson"> แสดงบรรทัดข้อมูล JSON</label>
+        <button class="btn" type="button" id="btnClearConsole">ล้างหน้าจอ</button>
+      </div>
+    </section>
+
+    <section data-panel="about" hidden>
+      <div class="card">
+        <h2>ตั้งค่า</h2>
+        <div class="form-grid" id="settingsForm">
+          <div class="field"><label for="tMin">อุณหภูมิต่ำสุดที่ยอมรับ (°C)</label><input type="number" step="0.1" id="tMin" data-path="limits.tMin"></div>
+          <div class="field"><label for="tMax">อุณหภูมิสูงสุดที่ยอมรับ (°C)</label><input type="number" step="0.1" id="tMax" data-path="limits.tMax"></div>
+          <div class="field"><label for="hMin">ความชื้นต่ำสุดที่ยอมรับ (%RH)</label><input type="number" step="1" id="hMin" data-path="limits.hMin"></div>
+          <div class="field"><label for="hMax">ความชื้นสูงสุดที่ยอมรับ (%RH)</label><input type="number" step="1" id="hMax" data-path="limits.hMax"></div>
+          <div class="field"><label for="xco2">CO₂ ในอากาศ (µmol/mol)</label><input type="number" step="10" id="xco2" data-path="xco2"></div>
+          <div class="field"><label for="specT">AHT20 อุณหภูมิ ± (°C)</label><input type="number" step="0.05" id="specT" data-path="spec.T"></div>
+          <div class="field"><label for="specRH">AHT20 ความชื้น ± (%RH)</label><input type="number" step="0.1" id="specRH" data-path="spec.RH"></div>
+          <div class="field"><label for="specP">BMP280 ความดัน ± (hPa)</label><input type="number" step="0.01" id="specP" data-path="spec.P"></div>
+          <div class="field"><label for="specTb">BMP280 อุณหภูมิ ± (°C)</label><input type="number" step="0.1" id="specTb" data-path="spec.Tb"></div>
+          <div class="field"><label for="dist">ค่า ± ตามสเปกตีความเป็น</label>
+            <select id="dist" data-path="dist">
+              <option value="rect">ขอบเขตแบบสี่เหลี่ยม: u = a/√3</option>
+              <option value="norm">ช่วงความเชื่อมั่น ~95%: u = a/2</option>
+            </select>
+          </div>
+          <div class="field"><label for="kFactor">Coverage factor k</label><input type="number" step="0.1" id="kFactor" data-path="k"></div>
+        </div>
+        <p class="hint">ค่า ± เริ่มต้นมาจาก datasheet (ค่า typical ไม่ใช่ผลสอบเทียบ) ถ้าสอบเทียบเซนเซอร์แล้ว ให้ใส่ความไม่แน่นอนจากใบรับรองแทน การตั้งค่าจะถูกจำไว้ในเบราว์เซอร์นี้</p>
+      </div>
+
+      <div class="card prose" style="margin-top:12px">
+        <h2>สูตรที่ใช้</h2>
+        <p>t = อุณหภูมิ (°C) จาก AHT20, T = t + 273.15 K, RH = ความชื้นสัมพัทธ์ (%) จาก AHT20, p = ความดัน (hPa) จาก BMP280</p>
+
+        <h3>ความดันไออิ่มตัวและความดันไอน้ำ (Magnus, Alduchov &amp; Eskridge 1996)</h3>
+        <div class="formula">e_s = 6.1094 · exp(17.625·t / (t + 243.04))   [hPa]
+e   = (RH/100) · e_s</div>
+        <p>คลาดเคลื่อนสัมพัทธ์น้อยกว่า 0.4% ในช่วง −40 ถึง 50 °C (เหนือผิวน้ำ)</p>
+
+        <h3>จุดน้ำค้าง (Dew point)</h3>
+        <div class="formula">γ   = ln(RH/100) + 17.625·t / (243.04 + t)
+t_d = 243.04·γ / (17.625 − γ)</div>
+        <p>อุณหภูมิที่ไอน้ำในอากาศเริ่มควบแน่น ใช้ประเมินความเสี่ยงที่จะเกิดหยดน้ำบนผิวอุปกรณ์ที่เย็นกว่าอากาศ</p>
+
+        <h3>ความชื้นสัมบูรณ์ และอัตราส่วนผสมไอน้ำ</h3>
+        <div class="formula">ρ_v = e·M_v / (R·T) = 216.674 · e / T        [g/m³]
+w   = 621.96 · e / (p − e)                   [g/kg อากาศแห้ง]</div>
+
+        <h3>เอนทาลปีจำเพาะของอากาศชื้น (ASHRAE)</h3>
+        <div class="formula">h = 1.006·t + (w/1000)·(2501 + 1.86·t)     [kJ/kg อากาศแห้ง]</div>
+        <p>พลังงานความร้อนในอากาศ ใช้ในงานระบบปรับอากาศ</p>
+
+        <h3>ความหนาแน่นอากาศ (CIPM-2007, Picard et al. 2008)</h3>
+        <div class="formula">ρ_a  = p·M_a / (Z·R·T) · [1 − x_v·(1 − M_v/M_a)]       (p ใน Pa)
+p_sv = exp(A·T² + B·T + C + D/T)   A = 1.2378847e-5 K⁻², B = −1.9121316e-2 K⁻¹,
+                                   C = 33.93711047,     D = −6.3431645e3 K
+f    = 1.00062 + 3.14e-8·p + 5.6e-7·t²
+x_v  = (RH/100) · f · p_sv / p
+Z    = 1 − (p/T)·[a0 + a1·t + a2·t² + (b0 + b1·t)·x_v + (c0 + c1·t)·x_v²] + (p²/T²)·(d + e·x_v²)
+       a0 = 1.58123e-6 K/Pa, a1 = −2.9331e-8 /Pa, a2 = 1.1043e-10 /(K·Pa)
+       b0 = 5.707e-6 K/Pa,   b1 = −2.051e-8 /Pa,  c0 = 1.9898e-4 K/Pa, c1 = −2.376e-6 /Pa
+       d  = 1.83e-11 K²/Pa², e = −0.765e-8 K²/Pa²
+M_a  = [28.96546 + 12.011·(x_CO2 − 0.0004)]·1e-3 kg/mol,  M_v = 18.01528e-3 kg/mol,  R = 8.314472 J/(mol·K)</div>
+        <p>สูตรมาตรฐานของ CIPM สำหรับแก้ผลของแรงลอยตัวของอากาศ (air buoyancy) ในงานสอบเทียบมวลและเครื่องชั่ง ใช้ได้ในช่วง 600–1100 hPa และ 15–27 °C ถ้านอกช่วงนี้หน้าเว็บจะขึ้นเครื่องหมายเตือน ความไม่แน่นอนของตัวสูตรเองเล็กมาก (ระดับ 10⁻⁵) เมื่อเทียบกับความไม่แน่นอนของเซนเซอร์ CO₂ มีผลประมาณ +0.4×10⁻⁶ ของ ρ ต่อ 1 µmol/mol ถ้าไม่ได้วัด CO₂ ควรนับเป็นแหล่งความไม่แน่นอนเพิ่ม</p>
+
+        <h3>อุณหภูมิกระเปาะเปียก (Stull 2011)</h3>
+        <div class="formula">t_w = t·atan(0.151977·√(RH + 8.313659)) + atan(t + RH) − atan(RH − 1.676331)
+      + 0.00391838·RH^1.5·atan(0.023101·RH) − 4.686035</div>
+        <p>สูตรเชิงประจักษ์ที่ความดันระดับน้ำทะเล ใช้ได้ที่ RH 5–99% และ −20 ถึง 50 °C คลาดเคลื่อน −1 ถึง +0.65 °C</p>
+
+        <h3>ดัชนีความร้อน (Heat index, NWS / Rothfusz 1990)</h3>
+        <p>แปลง t เป็น °F (T<sub>F</sub>) แล้วคำนวณ HI = 0.5·[T<sub>F</sub> + 61 + 1.2·(T<sub>F</sub> − 68) + 0.094·RH] ก่อน ถ้าค่าเฉลี่ยของ HI กับ T<sub>F</sub> ≥ 80 °F จะใช้สมการถดถอยของ Rothfusz พร้อมค่าปรับเมื่อ RH &lt; 13% หรือ RH &gt; 85% แล้วแปลงกลับเป็น °C เป็นค่า "อุณหภูมิที่ร่างกายรู้สึก" คลาดเคลื่อน ±1.3 °F</p>
+
+        <h3>ความสูงตามความดัน (Pressure altitude, ISA)</h3>
+        <div class="formula">h_p = 44330.77 · [1 − (p / 1013.25)^0.190263]      [m]</div>
+        <p>ความสูงในบรรยากาศมาตรฐานที่ให้ความดันเท่านี้ ค่าความดันที่ต่างกัน 0.12 hPa เท่ากับความสูงต่างกันประมาณ 1 m</p>
+
+        <h3>สถิติ</h3>
+        <div class="formula">ค่าเฉลี่ย x̄ = Σx/n          SD s = √[Σ(x − x̄)² / (n − 1)]          u(x̄) = s/√n
+แนวโน้ม b = Σ(t − t̄)(x − x̄) / Σ(t − t̄)²   (ต่อชั่วโมง)
+E_n = |x̄_i − x̄_j| / √(U_i² + U_j²)       (|E_n| ≤ 1 = สอดคล้องกันภายในความไม่แน่นอน)</div>
+        <p>u(x̄) = s/√n ถือว่าแต่ละตัวอย่างเป็นอิสระต่อกัน ซึ่งไม่จริงเมื่อค่าเปลี่ยนช้าๆ ตามสภาพห้อง จึงควรดูประกอบกับ Allan deviation</p>
+
+        <h3>Allan deviation (แบบ overlapping)</h3>
+        <div class="formula">σ²(τ) = 1 / [2·m²·(N − 2m + 1)] · Σ_j ( Σ_{i=j}^{j+m−1} (y_{i+m} − y_i) )²      τ = m·τ0</div>
+
+        <h3>ความไม่แน่นอน (GUM)</h3>
+        <p>ค่า ± จาก datasheet ถือเป็นความไม่แน่นอนแบบ Type B แปลงเป็น u ตามที่ตั้งค่าไว้ ปริมาณที่คำนวณได้ใช้สัมประสิทธิ์ความไว (sensitivity coefficient) ที่หาเชิงตัวเลข แล้วรวมแบบ u<sub>c</sub> = √Σ(c<sub>i</sub>·u<sub>i</sub>)² โดยถือว่า T, RH, p ไม่สัมพันธ์กัน รายงานเป็น U = k·u<sub>c</sub></p>
+        <p>สเปกเริ่มต้น: AHT20 ±0.3 °C, ±2 %RH (typical) · BMP280 ±1.0 hPa (950–1050 hPa, 0–40 °C), ความแม่นยำสัมพัทธ์ ±0.12 hPa · อุณหภูมิของ BMP280 ±1.0 °C</p>
+
+        <h3>อ้างอิง</h3>
+        <ul>
+          <li>A. Picard, R. S. Davis, M. Gläser, K. Fujii, "Revised formula for the density of moist air (CIPM-2007)", <i>Metrologia</i> 45 (2008) 149–155 · <a href="https://www.nist.gov/sites/default/files/documents/calibrations/CIPM-2007.pdf" target="_blank" rel="noopener">PDF (NIST)</a></li>
+          <li>O. A. Alduchov, R. E. Eskridge, "Improved Magnus form approximation of saturation vapor pressure", <i>J. Appl. Meteor.</i> 35 (1996) 601–609</li>
+          <li>R. Stull, "Wet-Bulb Temperature from Relative Humidity and Air Temperature", <i>J. Appl. Meteor. Climatol.</i> 50 (2011) 2267–2269</li>
+          <li>NOAA/NWS, The Heat Index Equation · <a href="https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml" target="_blank" rel="noopener">wpc.ncep.noaa.gov</a></li>
+          <li>JCGM 100:2008, Evaluation of measurement data — Guide to the expression of uncertainty in measurement (GUM)</li>
+          <li>D. W. Allan, "Statistics of atomic frequency standards", <i>Proc. IEEE</i> 54 (1966) 221–230 · IEEE Std 1139</li>
+          <li>Bosch Sensortec, BMP280 datasheet (BST-BMP280-DS001) · ASAIR, AHT20 datasheet</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script>
+'use strict';
+
+// ===================== ค่าพื้นฐาน =====================
+const N = 4;
+const NAMES = ['M1', 'M2', 'M3', 'M4'];
+const MAX_SAMPLES = 60000;            // ประมาณ 16 ชั่วโมงที่ 1 ครั้ง/วินาที
+const NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+const QTY = {
+  T:   { name: 'อุณหภูมิ (AHT20)', short: 'อุณหภูมิ', unit: '°C', dp: 2 },
+  RH:  { name: 'ความชื้นสัมพัทธ์ (AHT20)', short: 'ความชื้น', unit: '%RH', dp: 1 },
+  P:   { name: 'ความดันบรรยากาศ (BMP280)', short: 'ความดัน', unit: 'hPa', dp: 2 },
+  Tb:  { name: 'อุณหภูมิ (BMP280)', short: 'อุณหภูมิ BMP280', unit: '°C', dp: 2 },
+  Td:  { name: 'จุดน้ำค้าง', short: 'จุดน้ำค้าง', unit: '°C', dp: 2 },
+  E:   { name: 'ความดันไอน้ำ', short: 'ความดันไอน้ำ', unit: 'hPa', dp: 2 },
+  AH:  { name: 'ความชื้นสัมบูรณ์', short: 'ความชื้นสัมบูรณ์', unit: 'g/m³', dp: 2 },
+  W:   { name: 'อัตราส่วนผสมไอน้ำ', short: 'อัตราส่วนผสม', unit: 'g/kg', dp: 2 },
+  RHO: { name: 'ความหนาแน่นอากาศ (CIPM-2007)', short: 'ความหนาแน่นอากาศ', unit: 'kg/m³', dp: 4 },
+  TW:  { name: 'อุณหภูมิกระเปาะเปียก', short: 'กระเปาะเปียก', unit: '°C', dp: 2 },
+  HI:  { name: 'ดัชนีความร้อน', short: 'ดัชนีความร้อน', unit: '°C', dp: 1 },
+  H:   { name: 'เอนทาลปีจำเพาะ', short: 'เอนทาลปี', unit: 'kJ/kg', dp: 2 },
+  ALT: { name: 'ความสูงตามความดัน (ISA)', short: 'ความสูงตามความดัน', unit: 'm', dp: 1 },
+  DT:  { name: 'ผลต่างอุณหภูมิ BMP280 − AHT20', short: 'Tb − T', unit: '°C', dp: 2 },
+};
+const RAW = ['T', 'RH', 'P', 'Tb'];
+const DERIVED = ['Td', 'E', 'AH', 'W', 'RHO', 'TW', 'HI', 'H', 'ALT', 'DT'];
+const ALL_Q = [...RAW, ...DERIVED];
+
+// ===================== เครื่องมือ =====================
+const $ = (sel, root = document) => root.querySelector(sel);
+function mk(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text != null) el.textContent = text;
+  return el;
+}
+const isNum = v => typeof v === 'number' && Number.isFinite(v);
+const numOrNaN = v => (isNum(v) ? v : NaN);
+const fmt = (v, dp) => (isNum(v) ? v.toFixed(dp) : '—');
+const fmtSigned = (v, dp) => (isNum(v) ? (v < 0 ? '−' : '+') + Math.abs(v).toFixed(dp) : '—');
+const pad2 = n => String(n).padStart(2, '0');
+function clock(t, sec = true) {
+  const d = new Date(t);
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + (sec ? ':' + pad2(d.getSeconds()) : '');
+}
+function lowerBound(arr, v, lo = 0, hi = arr.length) {
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < v) lo = mid + 1; else hi = mid;
+  }
+  return lo;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const seriesColor = m => cssVar('--s' + (m + 1));
+
+// ===================== การตั้งค่า (จำไว้ใน localStorage) =====================
+const SETTINGS_KEY = 'esp32-sensor-dashboard.v1';
+const DEFAULTS = {
+  source: 'serial', window: 900, mode: 'abs', theme: 'auto', hidden: [false, false, false, false],
+  limits: { tMin: 15, tMax: 35, hMin: 20, hMax: 80 },
+  xco2: 400, spec: { T: 0.3, RH: 2, P: 1, Tb: 1 }, dist: 'rect', k: 2, showJson: false, adevKey: 'T',
+};
+function loadSettings() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (e) { saved = {}; }
+  const s = JSON.parse(JSON.stringify(DEFAULTS));
+  for (const k of Object.keys(s)) {
+    if (!(k in saved)) continue;
+    if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) Object.assign(s[k], saved[k]);
+    else s[k] = saved[k];
+  }
+  if (!Array.isArray(s.hidden) || s.hidden.length !== N) s.hidden = [false, false, false, false];
+  return s;
+}
+let S = loadSettings();
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(S)); } catch (e) { /* โหมดส่วนตัวหรือถูกบล็อก: ใช้ค่าในหน่วยความจำต่อไป */ }
+}
+
+// ===================== ฟิสิกส์ =====================
+const Phys = {
+  // ความดันไออิ่มตัวเหนือน้ำ (Magnus, Alduchov & Eskridge 1996) [hPa]
+  es: t => 6.1094 * Math.exp(17.625 * t / (t + 243.04)),
+  e: (t, rh) => rh / 100 * Phys.es(t),
+  dewPoint(t, rh) {
+    const g = Math.log(rh / 100) + 17.625 * t / (243.04 + t);
+    return 243.04 * g / (17.625 - g);
+  },
+  absHumidity: (t, rh) => 216.674 * Phys.e(t, rh) / (t + 273.15),            // g/m³
+  mixingRatio(t, rh, p) { const e = Phys.e(t, rh); return 621.96 * e / (p - e); }, // g/kg
+  enthalpy(t, rh, p) {                                                          // kJ/kg อากาศแห้ง
+    const w = Phys.mixingRatio(t, rh, p) / 1000;
+    return 1.006 * t + w * (2501 + 1.86 * t);
+  },
+  // Stull (2011) ที่ความดันระดับน้ำทะเล
+  wetBulb: (t, rh) => t * Math.atan(0.151977 * Math.sqrt(rh + 8.313659)) + Math.atan(t + rh)
+    - Math.atan(rh - 1.676331) + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) - 4.686035,
+  // NWS heat index (Rothfusz 1990) คำนวณเป็น °F แล้วแปลงกลับ
+  heatIndex(t, rh) {
+    const F = t * 9 / 5 + 32;
+    let hi = 0.5 * (F + 61 + (F - 68) * 1.2 + rh * 0.094);
+    if ((hi + F) / 2 >= 80) {
+      hi = -42.379 + 2.04901523 * F + 10.14333127 * rh - 0.22475541 * F * rh - 0.00683783 * F * F
+        - 0.05481717 * rh * rh + 0.00122874 * F * F * rh + 0.00085282 * F * rh * rh - 0.00000199 * F * F * rh * rh;
+      if (rh < 13 && F >= 80 && F <= 112) hi -= ((13 - rh) / 4) * Math.sqrt((17 - Math.abs(F - 95)) / 17);
+      else if (rh > 85 && F >= 80 && F <= 87) hi += ((rh - 85) / 10) * ((87 - F) / 5);
+    }
+    return (hi - 32) * 5 / 9;
+  },
+  pressureAltitude: p => 44330.77 * (1 - Math.pow(p / 1013.25, 0.190263)),     // m (ISA)
+  // ความหนาแน่นอากาศชื้น CIPM-2007 (Picard et al., Metrologia 45 (2008) 149)
+  airDensity(t, rh, pHpa, xco2) {
+    const p = pHpa * 100, T = t + 273.15;
+    const psv = Math.exp(1.2378847e-5 * T * T - 1.9121316e-2 * T + 33.93711047 - 6.3431645e3 / T);
+    const f = 1.00062 + 3.14e-8 * p + 5.6e-7 * t * t;
+    const xv = (rh / 100) * f * psv / p;
+    const Z = 1 - (p / T) * (1.58123e-6 - 2.9331e-8 * t + 1.1043e-10 * t * t
+      + (5.707e-6 - 2.051e-8 * t) * xv + (1.9898e-4 - 2.376e-6 * t) * xv * xv)
+      + (p * p) / (T * T) * (1.83e-11 - 0.765e-8 * xv * xv);
+    const Ma = (28.96546 + 12.011 * (xco2 - 0.0004)) * 1e-3;
+    const Mv = 18.01528e-3;
+    return p * Ma / (Z * 8.314472 * T) * (1 - xv * (1 - Mv / Ma));
+  },
+};
+
+// ปริมาณที่คำนวณได้ และตัวแปรที่แต่ละปริมาณต้องใช้
+const DERIVE = {
+  Td: r => Phys.dewPoint(r.T, r.RH),
+  E: r => Phys.e(r.T, r.RH),
+  AH: r => Phys.absHumidity(r.T, r.RH),
+  W: r => Phys.mixingRatio(r.T, r.RH, r.P),
+  RHO: r => Phys.airDensity(r.T, r.RH, r.P, S.xco2 * 1e-6),
+  TW: r => Phys.wetBulb(r.T, r.RH),
+  HI: r => Phys.heatIndex(r.T, r.RH),
+  H: r => Phys.enthalpy(r.T, r.RH, r.P),
+  ALT: r => Phys.pressureAltitude(r.P),
+  DT: r => r.Tb - r.T,
+};
+const NEEDS = {
+  Td: ['T', 'RH'], E: ['T', 'RH'], AH: ['T', 'RH'], W: ['T', 'RH', 'P'], RHO: ['T', 'RH', 'P'],
+  TW: ['T', 'RH'], HI: ['T', 'RH'], H: ['T', 'RH', 'P'], ALT: ['P'], DT: ['T', 'Tb'],
+};
+function deriveOne(k, r) {
+  const needs = NEEDS[k];
+  if (!needs.every(q => isNum(r[q]))) return NaN;
+  if (needs.includes('RH') && !(r.RH > 0)) return NaN;
+  const v = DERIVE[k](r);
+  return isNum(v) ? v : NaN;
+}
+
+// ความไม่แน่นอนขยาย U = k·u_c จากสเปกของเซนเซอร์ (GUM, sensitivity coefficient เชิงตัวเลข)
+const DELTA = { T: 0.01, RH: 0.05, P: 0.05, Tb: 0.01 };
+function stdU(q) { const a = S.spec[q]; return S.dist === 'norm' ? a / 2 : a / Math.sqrt(3); }
+function expandedU(k, r) {
+  if (RAW.includes(k)) return S.k * stdU(k);
+  let s2 = 0;
+  for (const q of NEEDS[k]) {
+    const up = { ...r, [q]: r[q] + DELTA[q] };
+    const dn = { ...r, [q]: r[q] - DELTA[q] };
+    const c = (deriveOne(k, up) - deriveOne(k, dn)) / (2 * DELTA[q]);
+    if (!isNum(c)) return NaN;
+    s2 += (c * stdU(q)) ** 2;
+  }
+  return S.k * Math.sqrt(s2);
+}
+
+// ===================== ที่เก็บข้อมูล =====================
+const store = { t: [], dev: [], q: {}, dts: [], info: null };
+for (const k of ALL_Q) store.q[k] = [[], [], [], []];
+
+function addSample(d, tMs, devMs) {
+  const t = store.t;
+  if (t.length && tMs <= t[t.length - 1]) tMs = t[t.length - 1] + 1;   // ให้เวลาเพิ่มขึ้นเสมอ
+  if (t.length) {
+    store.dts.push(tMs - t[t.length - 1]);
+    if (store.dts.length > 30) store.dts.shift();
+  }
+  t.push(tMs);
+  store.dev.push(devMs);
+  for (let m = 0; m < N; m++) {
+    const a = Array.isArray(d[m]) ? d[m] : [];
+    const r = { T: numOrNaN(a[0]), RH: numOrNaN(a[1]), Tb: numOrNaN(a[2]), P: numOrNaN(a[3]) };
+    for (const k of RAW) store.q[k][m].push(r[k]);
+    for (const k of DERIVED) store.q[k][m].push(deriveOne(k, r));
+  }
+  if (t.length > MAX_SAMPLES + 1000) {
+    const cut = t.length - MAX_SAMPLES;
+    t.splice(0, cut);
+    store.dev.splice(0, cut);
+    for (const k of ALL_Q) for (const arr of store.q[k]) arr.splice(0, cut);
+  }
+}
+function recomputeDerived() {
+  for (let i = 0; i < store.t.length; i++) {
+    for (let m = 0; m < N; m++) {
+      const r = { T: store.q.T[m][i], RH: store.q.RH[m][i], P: store.q.P[m][i], Tb: store.q.Tb[m][i] };
+      for (const k of DERIVED) store.q[k][m][i] = deriveOne(k, r);
+    }
+  }
+}
+function clearStore() {
+  store.t.length = 0;
+  store.dev.length = 0;
+  store.dts.length = 0;
+  for (const k of ALL_Q) for (const arr of store.q[k]) arr.length = 0;
+}
+function medianDt() {
+  if (!store.dts.length) return 1000;
+  const a = [...store.dts].sort((x, y) => x - y);
+  return a[a.length >> 1];
+}
+function windowIdx() {
+  const t = store.t, n = t.length;
+  if (!n) return [0, 0];
+  if (!S.window) return [0, n];
+  return [lowerBound(t, t[n - 1] - S.window * 1000), n];
+}
+function rawAt(m, i) {
+  return { T: store.q.T[m][i], RH: store.q.RH[m][i], P: store.q.P[m][i], Tb: store.q.Tb[m][i] };
+}
+
+// ===================== สถิติ =====================
+function statsOf(k, m, i0, i1) {
+  const y = store.q[k][m], t = store.t;
+  let n = 0, mean = 0, M2 = 0, mn = Infinity, mx = -Infinity, last = NaN, tMean = 0;
+  for (let i = i0; i < i1; i++) {
+    const v = y[i];
+    if (!isNum(v)) continue;
+    n++;
+    const d = v - mean;
+    mean += d / n;
+    M2 += d * (v - mean);
+    if (v < mn) mn = v;
+    if (v > mx) mx = v;
+    last = v;
+    tMean += (t[i] - tMean) / n;
+  }
+  if (!n) return null;
+  let sxy = 0, sxx = 0;
+  for (let i = i0; i < i1; i++) {
+    const v = y[i];
+    if (!isNum(v)) continue;
+    const dx = (t[i] - tMean) / 3.6e6;   // ชั่วโมง
+    sxy += dx * (v - mean);
+    sxx += dx * dx;
+  }
+  const sd = n > 1 ? Math.sqrt(M2 / (n - 1)) : NaN;
+  return { n, mean, sd, uA: n > 1 ? sd / Math.sqrt(n) : NaN, min: mn, max: mx, range: mx - mn, last, slope: sxx > 0 ? sxy / sxx : NaN };
+}
+
+// Allan deviation แบบ overlapping จากช่วงล่าสุดที่ไม่มีข้อมูลขาดหาย
+function adevOf(k, m, i0, i1) {
+  const y = store.q[k][m];
+  let j = i1 - 1;
+  while (j >= i0 && !isNum(y[j])) j--;
+  const end = j + 1;
+  while (j >= i0 && isNum(y[j])) j--;
+  const start = j + 1;
+  const n = end - start;
+  if (n < 20) return null;
+  const dts = [];
+  for (let i = Math.max(start + 1, end - 300); i < end; i++) dts.push(store.t[i] - store.t[i - 1]);
+  dts.sort((a, b) => a - b);
+  const tau0 = dts[dts.length >> 1] / 1000;
+  let mean = 0;
+  for (let i = start; i < end; i++) mean += y[i];
+  mean /= n;
+  const cs = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) cs[i + 1] = cs[i] + (y[start + i] - mean);
+  const taus = [], sig = [];
+  for (let mm = 1; mm <= Math.floor(n / 4); mm *= 2) {
+    const cnt = n - 2 * mm + 1;
+    let s = 0;
+    for (let a = 0; a < cnt; a++) {
+      const v = cs[a + 2 * mm] - 2 * cs[a + mm] + cs[a];
+      s += v * v;
+    }
+    taus.push(mm * tau0);
+    sig.push(Math.sqrt(s / (2 * mm * mm * cnt)));
+  }
+  return { n, tau0, taus, sig };
+}
+
+// ===================== กราฟ (canvas) =====================
+const TIME_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400].map(s => s * 1000);
+function timeTicks(x0, x1, target) {
+  const span = x1 - x0;
+  let step = TIME_STEPS[TIME_STEPS.length - 1];
+  for (const s of TIME_STEPS) if (span / s <= target) { step = s; break; }
+  const tz = new Date(x0).getTimezoneOffset() * 60000;
+  const out = [];
+  for (let v = Math.ceil((x0 - tz) / step) * step + tz; v <= x1; v += step) out.push({ v, label: clock(v, step < 60000) });
+  return out;
+}
+function niceTicks(a, b, target) {
+  const raw = (b - a) / Math.max(1, target);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const r = raw / mag;
+  const step = (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag;
+  const dec = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+  const out = [];
+  for (let v = Math.ceil(a / step - 1e-9) * step; v <= b + step * 1e-9; v += step) {
+    out.push({ v, label: (Math.abs(v) < step * 1e-6 ? 0 : v).toFixed(dec) });
+  }
+  return out;
+}
+function logLabel(v) {
+  if (v >= 1e-3 && v < 1e5) return String(+v.toPrecision(1));
+  return v.toExponential(0);
+}
+function logTicks(a, b) {
+  const out = [];
+  const e0 = Math.floor(Math.log10(a) + 1e-9), e1 = Math.ceil(Math.log10(b) - 1e-9);
+  const fewDecades = Math.log10(b / a) <= 2.5;
+  for (let e = e0; e <= e1; e++) {
+    out.push(Math.pow(10, e));
+    if (fewDecades) for (const f of [2, 5]) out.push(f * Math.pow(10, e));
+  }
+  return out.filter(v => v >= a * 0.999 && v <= b * 1.001).sort((x, y) => x - y).map(v => ({ v, label: logLabel(v) }));
+}
+function dot(ctx, x, y, color, ring) {
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fillStyle = ring;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+const tip = $('#tooltip');
+function showTip(title, rows, cx, cy) {
+  tip.replaceChildren(mk('div', 'tt-h', title));
+  for (const r of rows) {
+    const row = mk('div', 'tt-r');
+    const key = mk('span', 'key');
+    key.style.setProperty('--c', r.color);
+    row.append(key, mk('span', 'tt-v', r.value), mk('span', 'tt-n', r.name));
+    tip.append(row);
+  }
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = cx + 14, y = cy + 14;
+  if (x + w > innerWidth - 8) x = cx - w - 14;
+  if (y + h > innerHeight - 8) y = cy - h - 14;
+  tip.style.left = Math.max(8, x) + 'px';
+  tip.style.top = Math.max(8, y) + 'px';
+}
+function hideTip() { tip.hidden = true; }
+
+const allCharts = [];
+class Chart {
+  // cfg: title, unit, dp, height, logX, logY, markers, endValue, emptyText
+  constructor(parent, cfg) {
+    this.cfg = Object.assign({ height: 230, logX: false, logY: false, markers: false, endValue: true }, cfg);
+    this.root = mk('figure', 'chart-card');
+    const head = mk('figcaption', 'chart-head');
+    const title = mk('div', 'chart-title', cfg.title);
+    if (cfg.unit) title.append(mk('span', 'chart-unit', cfg.unit));
+    this.noteEl = mk('span', 'chart-note');
+    this.legend = mk('div', 'legend');
+    this.tblBtn = mk('button', 'btn btn-small', 'ตาราง');
+    this.tblBtn.type = 'button';
+    this.tblBtn.setAttribute('aria-pressed', 'false');
+    this.tblBtn.addEventListener('click', () => {
+      const show = this.tbl.hidden;
+      this.tbl.hidden = !show;
+      this.tblBtn.setAttribute('aria-pressed', String(show));
+      if (show) this.renderTable();
+    });
+    head.append(title, this.noteEl, this.legend, this.tblBtn);
+    this.plot = mk('div', 'plot');
+    this.plot.style.height = this.cfg.height + 'px';
+    this.cv = mk('canvas');
+    this.cv.setAttribute('aria-hidden', 'true');
+    this.ov = mk('canvas', 'overlay');
+    this.ov.tabIndex = 0;
+    this.ov.setAttribute('role', 'img');
+    this.ov.setAttribute('aria-label', cfg.title + ' (ใช้ลูกศรซ้าย/ขวาเพื่ออ่านค่า หรือกดปุ่ม ตาราง)');
+    this.emptyEl = mk('div', 'empty', cfg.emptyText || 'ยังไม่มีข้อมูล');
+    this.plot.append(this.cv, this.ov, this.emptyEl);
+    this.tbl = mk('div', 'table-wrap');
+    this.tbl.hidden = true;
+    this.root.append(head, this.plot, this.tbl);
+    parent.append(this.root);
+
+    this.ov.addEventListener('pointermove', e => this.pointer(e));
+    this.ov.addEventListener('pointerdown', e => this.pointer(e));
+    // บนจอสัมผัส ให้ tooltip ค้างไว้หลังยกนิ้ว จนกว่าจะแตะที่อื่น
+    this.ov.addEventListener('pointerleave', e => { if (e.pointerType !== 'touch') this.clearHover(); });
+    this.ov.addEventListener('focus', () => this.keyMove(0));
+    this.ov.addEventListener('blur', () => this.clearHover());
+    this.ov.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') { this.keyMove(-1); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { this.keyMove(1); e.preventDefault(); }
+      else if (e.key === 'Escape') this.clearHover();
+    });
+    new ResizeObserver(() => { if (this.data && this.isVisible()) this.draw(); }).observe(this.plot);
+    this.renderLegend();
+    allCharts.push(this);
+  }
+  isVisible() { return this.root.offsetParent !== null; }
+  setNote(text) { this.noteEl.textContent = text; }
+  renderLegend() {
+    this.legend.replaceChildren();
+    for (let m = 0; m < N; m++) {
+      const b = mk('button');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(!S.hidden[m]));
+      b.title = 'แสดง/ซ่อน ' + NAMES[m] + ' ในกราฟทุกอัน';
+      const key = mk('span', 'key');
+      key.style.setProperty('--c', `var(--s${m + 1})`);
+      b.append(key, document.createTextNode(NAMES[m]));
+      b.addEventListener('click', () => toggleModule(m));
+      this.legend.append(b);
+    }
+  }
+  set(data) {
+    this.data = data;
+    if (!this.isVisible()) return;
+    this.draw();
+    if (!this.tbl.hidden) this.renderTable();
+  }
+  val(s, i) { return s.y[i - (s.off || 0)]; }
+  draw() {
+    const d = this.data, cfg = this.cfg;
+    const W = this.plot.clientWidth, H = this.plot.clientHeight;
+    if (!W || !H || !d) return;
+    const dpr = window.devicePixelRatio || 1;
+    for (const c of [this.cv, this.ov]) {
+      const w = Math.round(W * dpr), h = Math.round(H * dpr);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    }
+    const ctx = this.cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const octx = this.ov.getContext('2d');
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.clearRect(0, 0, this.ov.width, this.ov.height);
+
+    const ok = v => isNum(v) && (!cfg.logY || v > 0);
+    const series = d.series.filter(s => s.i1 > s.i0);
+    let ymin = Infinity, ymax = -Infinity, xmin = Infinity, xmax = -Infinity;
+    for (const s of series) {
+      for (let i = s.i0; i < s.i1; i++) {
+        const v = this.val(s, i);
+        if (!ok(v)) continue;
+        if (v < ymin) ymin = v;
+        if (v > ymax) ymax = v;
+        if (s.x[i] < xmin) xmin = s.x[i];
+        if (s.x[i] > xmax) xmax = s.x[i];
+      }
+    }
+    const has = ymin <= ymax;
+    this.emptyEl.hidden = has;
+    if (!has) {
+      if (this.hoverClient || this.hoverX != null) this.clearHover();
+      this.sc = null;
+      return;
+    }
+
+    let y0 = ymin, y1 = ymax, x0 = xmin, x1 = xmax;
+    if (cfg.logY) {
+      y0 = ymin / 1.5;
+      y1 = ymax * 1.5;
+    } else {
+      const span = y1 - y0;
+      const pad = span > 0 ? span * 0.08 : Math.max(Math.abs(y0) * 1e-4, Math.pow(10, -(cfg.dp ?? 2)));
+      y0 -= pad;
+      y1 += pad;
+    }
+    if (cfg.logX) {
+      x0 = xmin / 1.3;
+      x1 = xmax * 1.3;
+    } else if (x1 - x0 < 1000) {
+      x0 -= 30000;
+      x1 += 30000;
+    }
+
+    const font = '12px ' + cssVar('--font');
+    ctx.font = font;
+    const col = { grid: cssVar('--grid'), axis: cssVar('--axis'), muted: cssVar('--muted'), text2: cssVar('--text-2'), surface: cssVar('--surface') };
+    const yt = cfg.logY ? logTicks(y0, y1) : niceTicks(y0, y1, Math.max(4, Math.floor((H - 40) / 36)));
+
+    // จุดปลายเส้น + ป้ายชื่อ (direct label)
+    const ends = [];
+    for (const s of series) {
+      for (let i = s.i1 - 1; i >= s.i0; i--) {
+        const v = this.val(s, i);
+        if (!ok(v)) continue;
+        ends.push({ s, x: s.x[i], v, label: cfg.endValue ? s.name + ' ' + fmt(v, cfg.dp ?? 2) : s.name });
+        break;
+      }
+    }
+    const ml = Math.ceil(Math.max(0, ...yt.map(t => ctx.measureText(t.label).width))) + 14;
+    const mr = ends.length ? Math.ceil(Math.max(...ends.map(e => ctx.measureText(e.label).width))) + 24 : 12;
+    const M = { l: ml, r: mr, t: 10, b: 24 };
+    const pw = Math.max(20, W - M.l - M.r), ph = Math.max(20, H - M.t - M.b);
+    const lx0 = Math.log10(x0), lx1 = Math.log10(x1), ly0 = Math.log10(y0), ly1 = Math.log10(y1);
+    const sx = cfg.logX ? v => M.l + (Math.log10(v) - lx0) / (lx1 - lx0) * pw : v => M.l + (v - x0) / (x1 - x0) * pw;
+    const sy = cfg.logY ? v => M.t + ph - (Math.log10(v) - ly0) / (ly1 - ly0) * ph : v => M.t + ph - (v - y0) / (y1 - y0) * ph;
+    const invX = cfg.logX ? px => Math.pow(10, lx0 + (px - M.l) / pw * (lx1 - lx0)) : px => x0 + (px - M.l) / pw * (x1 - x0);
+
+    // เส้นตาราง (hairline) และตัวเลขแกน
+    ctx.lineWidth = 1;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (const t of yt) {
+      const Y = Math.round(sy(t.v)) + 0.5;
+      if (Y < M.t - 1 || Y > M.t + ph + 1) continue;
+      ctx.strokeStyle = col.grid;
+      ctx.beginPath(); ctx.moveTo(M.l, Y); ctx.lineTo(M.l + pw, Y); ctx.stroke();
+      ctx.fillStyle = col.muted;
+      ctx.fillText(t.label, M.l - 8, Y);
+    }
+    const xt = cfg.logX ? logTicks(x0, x1) : timeTicks(x0, x1, Math.max(2, Math.floor(pw / 95)));
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (const t of xt) {
+      const X = Math.round(sx(t.v)) + 0.5;
+      if (X < M.l - 1 || X > M.l + pw + 1) continue;
+      ctx.strokeStyle = col.grid;
+      ctx.beginPath();
+      if (cfg.logX) { ctx.moveTo(X, M.t); ctx.lineTo(X, M.t + ph); } else { ctx.moveTo(X, M.t + ph); ctx.lineTo(X, M.t + ph + 4); }
+      ctx.stroke();
+      ctx.fillStyle = col.muted;
+      ctx.fillText(t.label, X, M.t + ph + 6);
+    }
+    ctx.strokeStyle = col.axis;
+    ctx.beginPath(); ctx.moveTo(M.l, M.t + ph + 0.5); ctx.lineTo(M.l + pw, M.t + ph + 0.5); ctx.stroke();
+
+    // เส้นข้อมูล: ถ้าจุดหนาแน่นกว่าพิกเซล ใช้ค่าแรก/ต่ำสุด/สูงสุด/สุดท้ายต่อคอลัมน์ เพื่อเก็บค่าสุดขีดไว้
+    const gap = d.gap || Infinity;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(M.l, M.t - 6, pw, ph + 12); ctx.clip();
+    for (const s of series) {
+      ctx.beginPath();
+      let pen = false;
+      const n = s.i1 - s.i0;
+      if (n <= pw * 2 || cfg.logX) {
+        for (let i = s.i0; i < s.i1; i++) {
+          const v = this.val(s, i);
+          if (!ok(v)) { pen = false; continue; }
+          if (pen && s.x[i] - s.x[i - 1] > gap) pen = false;
+          const X = sx(s.x[i]), Y = sy(v);
+          if (pen) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+          pen = true;
+        }
+      } else {
+        let colX = null, first = 0, lo = 0, hi = 0, last = 0, prevX = null;
+        const flush = () => {
+          if (colX === null) return;
+          if (pen) ctx.lineTo(colX, sy(first)); else ctx.moveTo(colX, sy(first));
+          ctx.lineTo(colX, sy(lo)); ctx.lineTo(colX, sy(hi)); ctx.lineTo(colX, sy(last));
+          pen = true;
+          colX = null;
+        };
+        for (let i = s.i0; i < s.i1; i++) {
+          const v = this.val(s, i);
+          if (!ok(v)) { flush(); pen = false; prevX = null; continue; }
+          if (prevX !== null && s.x[i] - prevX > gap) { flush(); pen = false; }
+          prevX = s.x[i];
+          const c = Math.round(sx(s.x[i]));
+          if (c !== colX) { flush(); colX = c; first = lo = hi = last = v; }
+          else { if (v < lo) lo = v; if (v > hi) hi = v; last = v; }
+        }
+        flush();
+      }
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      if (cfg.markers) {
+        for (let i = s.i0; i < s.i1; i++) {
+          const v = this.val(s, i);
+          if (ok(v)) dot(ctx, sx(s.x[i]), sy(v), s.color, col.surface);
+        }
+      }
+    }
+    ctx.restore();
+
+    // ป้ายปลายเส้น: เรียงไม่ให้ทับกัน แล้วลากเส้นนำ (leader) จากจุดไปที่ป้าย
+    const placed = ends.map(e => ({ ...e, X: sx(e.x), Y: sy(e.v) })).sort((a, b) => a.Y - b.Y);
+    const gapY = 15, top = M.t + 6, bottom = M.t + ph - 2;
+    placed.forEach((p, k) => { p.LY = Math.max(p.Y, k ? placed[k - 1].LY + gapY : top); });
+    if (placed.length && placed[placed.length - 1].LY > bottom) {
+      placed[placed.length - 1].LY = bottom;
+      for (let k = placed.length - 2; k >= 0; k--) placed[k].LY = Math.min(placed[k].LY, placed[k + 1].LY - gapY);
+    }
+    const LX = M.l + pw + 14;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (const p of placed) {
+      ctx.strokeStyle = col.axis;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.X + 6, p.Y); ctx.lineTo(LX - 3, p.LY); ctx.stroke();
+      dot(ctx, p.X, p.Y, p.s.color, col.surface);
+      ctx.fillStyle = col.text2;
+      ctx.fillText(p.label, LX, p.LY);
+    }
+    this.sc = { M, pw, ph, sx, sy, invX, ok, dpr, W, H, col };
+
+    // ข้อมูลใหม่เข้ามาขณะชี้เมาส์อยู่: แสดง tooltip ต่อที่ตำแหน่งเดิม
+    if (this.hoverClient) this.pointer(this.hoverClient);
+    else if (this.hoverX != null) this.keyHover(this.nearest(this.refSeries(), this.hoverX));
+  }
+  refSeries() { return this.data && this.data.series.find(s => s.i1 > s.i0); }
+  nearest(ref, xv) {
+    let i = lowerBound(ref.x, xv, ref.i0, ref.i1);
+    if (i >= ref.i1) i = ref.i1 - 1;
+    if (i > ref.i0 && Math.abs(ref.x[i - 1] - xv) < Math.abs(ref.x[i] - xv)) i--;
+    return i;
+  }
+  pointer(e) {
+    if (!this.sc) return;
+    const r = this.ov.getBoundingClientRect();
+    const px = e.clientX - r.left;
+    const { M, pw } = this.sc;
+    if (px < M.l - 6 || px > M.l + pw + 6) { this.clearHover(); return; }
+    const ref = this.refSeries();
+    if (!ref) return;
+    this.hoverClient = { clientX: e.clientX, clientY: e.clientY };
+    this.hoverAt(this.nearest(ref, this.sc.invX(clamp(px, M.l, M.l + pw))), e.clientX, e.clientY);
+  }
+  keyMove(step) {
+    const ref = this.refSeries();
+    if (!ref || !this.sc) return;
+    const i = this.hoverX == null ? ref.i1 - 1 : this.nearest(ref, this.hoverX) + step;
+    this.hoverClient = null;
+    this.keyHover(clamp(i, ref.i0, ref.i1 - 1));
+  }
+  keyHover(i) {
+    const ref = this.refSeries();
+    if (!ref) return;
+    const r = this.ov.getBoundingClientRect();
+    this.hoverAt(i, r.left + this.sc.sx(ref.x[i]), r.top + this.sc.M.t + 10);
+  }
+  hoverAt(i, cx, cy) {
+    const ref = this.refSeries();
+    const { M, ph, sx, sy, ok, dpr, W, H, col } = this.sc;
+    this.hoverX = ref.x[i];
+    const ctx = this.ov.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const xv = ref.x[i];
+    const X = Math.round(sx(xv)) + 0.5;
+    ctx.strokeStyle = col.muted;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X, M.t); ctx.lineTo(X, M.t + ph); ctx.stroke();
+    const rows = [];
+    for (const s of this.data.series) {
+      let j = i;
+      if (s !== ref) {
+        j = lowerBound(s.x, xv, s.i0, s.i1);
+        if (j >= s.i1 || s.x[j] !== xv) j = -1;
+      }
+      const v = j >= 0 ? this.val(s, j) : NaN;
+      if (ok(v)) dot(ctx, sx(xv), sy(v), s.color, col.surface);
+      rows.push({ color: s.cssColor, value: this.cfg.logY ? (isNum(v) ? v.toPrecision(3) : '—') : fmt(v, this.cfg.dp ?? 2), name: s.name });
+    }
+    const title = this.cfg.logX ? 'τ = ' + logLabel(xv) + ' s' : clock(xv);
+    showTip(title + (this.cfg.unit ? ' · ' + this.cfg.unit : ''), rows, cx, cy);
+  }
+  clearHover() {
+    this.hoverClient = null;
+    this.hoverX = null;
+    if (this.sc) {
+      const ctx = this.ov.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, this.ov.width, this.ov.height);
+    }
+    hideTip();
+  }
+  renderTable() {
+    this.tbl.replaceChildren();
+    const ref = this.refSeries();
+    if (!ref) { this.tbl.append(mk('p', 'hint', 'ยังไม่มีข้อมูล')); return; }
+    const table = mk('table', 'tbl');
+    const hr = mk('tr');
+    hr.append(mk('th', null, this.cfg.logX ? 'τ (s)' : 'เวลา'));
+    for (const s of this.data.series) hr.append(mk('th', null, s.name + (this.cfg.unit ? ' (' + this.cfg.unit + ')' : '')));
+    const thead = mk('thead');
+    thead.append(hr);
+    const tbody = mk('tbody');
+    const idx = [];
+    if (this.cfg.logX) for (let i = ref.i0; i < ref.i1; i++) idx.push(i);
+    else for (let i = ref.i1 - 1; i >= Math.max(ref.i0, ref.i1 - 30); i--) idx.push(i);
+    for (const i of idx) {
+      const tr = mk('tr');
+      const xv = ref.x[i];
+      tr.append(mk('td', null, this.cfg.logX ? logLabel(xv) : clock(xv)));
+      for (const s of this.data.series) {
+        let j = i;
+        if (s !== ref) { j = lowerBound(s.x, xv, s.i0, s.i1); if (j >= s.i1 || s.x[j] !== xv) j = -1; }
+        const v = j >= 0 ? this.val(s, j) : NaN;
+        tr.append(mk('td', null, this.cfg.logY ? (isNum(v) ? v.toPrecision(3) : '—') : fmt(v, this.cfg.dp ?? 2)));
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    this.tbl.append(table);
+    if (!this.cfg.logX) this.tbl.append(mk('p', 'hint', '30 ค่าล่าสุดในช่วงเวลาที่เลือก · ดาวน์โหลดทั้งหมดได้ด้วยปุ่ม CSV'));
+  }
+}
+
+function toggleModule(m) {
+  S.hidden[m] = !S.hidden[m];
+  saveSettings();
+  for (const c of allCharts) c.renderLegend();
+  scheduleRender(true);
+}
+
+// ===================== แหล่งข้อมูล =====================
+class LineAssembler {
+  constructor(onLine) { this.buf = ''; this.onLine = onLine; }
+  push(text) {
+    this.buf += text;
+    let i;
+    while ((i = this.buf.indexOf('\n')) >= 0) {
+      const line = this.buf.slice(0, i).replace(/\r$/, '');
+      this.buf = this.buf.slice(i + 1);
+      if (line.trim()) this.onLine(line);
+    }
+    if (this.buf.length > 20000) this.buf = '';
+  }
+}
+
+class SerialSource {
+  constructor(onText, onClose) { this.onText = onText; this.onClose = onClose; this.label = 'USB'; }
+  async open() {
+    this.port = await navigator.serial.requestPort();
+    await this.port.open({ baudRate: 115200, bufferSize: 16384 });
+    // DTR/RTS = false: ไม่ให้วงจร auto-reset ค้างบอร์ดไว้ในโหมดรีเซ็ต
+    try { await this.port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch (e) { /* บางไดรเวอร์ไม่รองรับ */ }
+    const info = this.port.getInfo ? this.port.getInfo() : {};
+    if (info.usbVendorId === 0x1a86) this.label = 'USB (CH34x/CH910x)';
+    this.closing = false;
+    this.loop = this.readLoop();
+  }
+  async readLoop() {
+    const dec = new TextDecoder();
+    while (this.port && this.port.readable && !this.closing) {
+      this.reader = this.port.readable.getReader();
+      try {
+        for (;;) {
+          const { value, done } = await this.reader.read();
+          if (done) break;
+          if (value) this.onText(dec.decode(value, { stream: true }));
+        }
+      } catch (e) {
+        if (!this.closing) logLine('อ่านพอร์ตผิดพลาด: ' + e.message, 'sys');
+      } finally {
+        try { this.reader.releaseLock(); } catch (e) { /* ปล่อยไปแล้ว */ }
+      }
+    }
+    if (!this.closing) this.onClose('สายหลุดหรือบอร์ดถูกถอด');
+  }
+  async send(text) {
+    if (!this.port || !this.port.writable) return;
+    const w = this.port.writable.getWriter();
+    try { await w.write(new TextEncoder().encode(text)); } finally { w.releaseLock(); }
+  }
+  async reset() {
+    // RTS = EN ต่ำ (รีเซ็ต) โดย DTR = false เพื่อบูตเข้าโปรแกรมปกติ
+    await this.port.setSignals({ dataTerminalReady: false, requestToSend: true });
+    await sleep(120);
+    await this.port.setSignals({ dataTerminalReady: false, requestToSend: false });
+  }
+  async close() {
+    this.closing = true;
+    try { if (this.reader) await this.reader.cancel(); } catch (e) { /* ignore */ }
+    try { await this.loop; } catch (e) { /* ignore */ }
+    try { if (this.port) await this.port.close(); } catch (e) { /* ignore */ }
+    this.port = null;
+  }
+}
+
+class BleSource {
+  constructor(onText, onClose) { this.onText = onText; this.onClose = onClose; this.label = 'Bluetooth'; }
+  async open() {
+    this.device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'ESP32' }, { services: [NUS_SERVICE] }],
+      optionalServices: [NUS_SERVICE],
+    });
+    this.closing = false;
+    this.device.addEventListener('gattserverdisconnected', () => { if (!this.closing) this.onClose('Bluetooth หลุด'); });
+    const server = await this.device.gatt.connect();
+    const svc = await server.getPrimaryService(NUS_SERVICE);
+    this.rx = await svc.getCharacteristic(NUS_RX);
+    this.tx = await svc.getCharacteristic(NUS_TX);
+    const dec = new TextDecoder();
+    this.tx.addEventListener('characteristicvaluechanged', e => {
+      const v = e.target.value;
+      this.onText(dec.decode(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), { stream: true }));
+    });
+    await this.tx.startNotifications();
+    this.label = 'Bluetooth · ' + (this.device.name || 'ESP32');
+  }
+  async send(text) {
+    if (!this.rx) return;
+    const bytes = new TextEncoder().encode(text);
+    for (let i = 0; i < bytes.length; i += 20) {
+      const chunk = bytes.slice(i, i + 20);
+      if (this.rx.writeValueWithoutResponse) await this.rx.writeValueWithoutResponse(chunk);
+      else await this.rx.writeValue(chunk);
+    }
+  }
+  async close() {
+    this.closing = true;
+    try { if (this.device && this.device.gatt.connected) this.device.gatt.disconnect(); } catch (e) { /* ignore */ }
+  }
+}
+
+// ข้อมูลจำลอง: รูปแบบบรรทัดเหมือนเฟิร์มแวร์จริง และผ่านตัวอ่านบรรทัดตัวเดียวกัน
+class DemoSource {
+  constructor(onText) { this.onText = onText; this.label = 'Demo'; this.interval = 1000; this.walk = [0, 0, 0, 0]; }
+  gauss() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  line(t) {
+    const s = (t - this.t0) / 1000;
+    const base = 24 + 0.5 * Math.sin(2 * Math.PI * s / 1500) + 0.15 * Math.sin(2 * Math.PI * s / 380);
+    const offT = [-0.12, 0, 0.1, 0.22], offH = [-0.8, 0, 0.6, 1.3], offP = [-0.35, 0, 0.28, 0.85], offTb = [0.6, 0.75, 0.9, 0.7];
+    const d = [];
+    for (let m = 0; m < N; m++) {
+      this.walk[m] += this.gauss() * 0.002;
+      const T = base + offT[m] + this.walk[m] + this.gauss() * 0.012;
+      const RH = 52 - 1.9 * (T - 24) + offH[m] + this.gauss() * 0.06;
+      const P = 1008.4 + 0.25 * Math.sin(2 * Math.PI * s / 5400) + offP[m] + this.gauss() * 0.02;
+      const Tb = T + offTb[m] + this.gauss() * 0.01;
+      d.push([+T.toFixed(3), +RH.toFixed(3), +Tb.toFixed(2), +P.toFixed(3)]);
+    }
+    return JSON.stringify({ ms: Math.round(s * 1000) + 3600000, d });
+  }
+  info() { return JSON.stringify({ info: { fw: 'demo', name: 'Demo', n: N, interval: this.interval } }); }
+  async open() {
+    this.t0 = Date.now();
+    this.onText('# demo: ข้อมูลจำลอง 4 โมดูล (ไม่ได้มาจากเซนเซอร์จริง)\n');
+    if (!store.t.length) {
+      // เติมข้อมูลย้อนหลัง 30 นาที ให้กราฟ สถิติ และ Allan deviation มีข้อมูลทันที
+      const now = Date.now();
+      for (let k = 1800; k >= 1; k--) handleLine(this.line(now - k * 1000), now - k * 1000, true);
+    }
+    this.start();
+  }
+  start() {
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.onText(this.line(Date.now()) + '\n'), this.interval);
+  }
+  async send(text) {
+    for (const cmd of text.split('\n').map(c => c.trim()).filter(Boolean)) {
+      if (/^I\d+$/i.test(cmd)) { this.interval = clamp(+cmd.slice(1), 500, 60000); this.start(); }
+      if (cmd === '?' || /^I\d+$/i.test(cmd)) this.onText(this.info() + '\n');
+    }
+  }
+  async close() { clearInterval(this.timer); }
+}
+
+// ===================== รับบรรทัดจากอุปกรณ์ =====================
+function handleLine(line, tMs, silent) {
+  const text = line.trim();
+  if (!text) return;
+  if (text[0] === '{') {
+    let obj = null;
+    try { obj = JSON.parse(text); } catch (e) { obj = null; }
+    if (obj && Array.isArray(obj.d)) {
+      addSample(obj.d, tMs ?? Date.now(), isNum(obj.ms) ? obj.ms : NaN);
+      if (!silent) {
+        if (S.showJson) logLine(text, 'in');
+        scheduleRender();
+      }
+      return;
+    }
+    if (obj && obj.info) {
+      store.info = obj.info;
+      if (isNum(obj.info.interval)) $('#intervalSel').value = String(obj.info.interval);
+      logLine(text, 'in');
+      updateMeta();
+      return;
+    }
+  }
+  if (!silent) logLine(text, 'in');
+}
+const assembler = new LineAssembler(l => handleLine(l));
+
+let src = null;
+let noDataCheck = null;
+// เชื่อมต่อแล้วแต่ไม่มีบรรทัดข้อมูล JSON เข้ามา: มักเป็นเพราะบอร์ดยังใช้เฟิร์มแวร์ตัวอื่น
+function checkNoData() {
+  if (!src || !noDataCheck || noDataCheck.warned || src instanceof DemoSource) return;
+  if (store.t.length > noDataCheck.count) { noDataCheck.warned = true; return; }
+  if (Date.now() - noDataCheck.at < 6000) return;
+  noDataCheck.warned = true;
+  const text = 'เชื่อมต่อแล้วแต่ยังไม่ได้รับข้อมูลจากเซนเซอร์ ตรวจว่าอัปโหลดเฟิร์มแวร์ env "sensor_web" แล้ว (ดูข้อความจากบอร์ดได้ที่แท็บ Console)';
+  showNotice(text);
+  logLine(text, 'sys');
+}
+function setConn(state, text) {
+  $('#status').dataset.state = state;
+  $('#statusText').textContent = text;
+  $('#btnConnect').textContent = state === 'on' ? 'ตัดการเชื่อมต่อ' : 'เชื่อมต่อ';
+  $('#btnConnect').disabled = state === 'busy';
+  $('#source').disabled = state !== 'off';
+  $('#btnReset').disabled = !(state === 'on' && src instanceof SerialSource);
+}
+function friendlyError(e, kind) {
+  const msg = (e && e.message) || String(e);
+  if (kind === 'serial' && e && (e.name === 'NetworkError' || e.name === 'InvalidStateError')) {
+    return 'เปิดพอร์ตไม่ได้ อาจมีโปรแกรมอื่นใช้พอร์ตอยู่ เช่น Serial Monitor ของ PlatformIO ให้ปิดก่อนแล้วลองใหม่';
+  }
+  if (kind === 'ble' && e && e.name === 'NotFoundError' && /adapter|Bluetooth/i.test(msg)) {
+    return 'ไม่พบ Bluetooth ในคอมพิวเตอร์นี้ หรือ Bluetooth ปิดอยู่';
+  }
+  if (kind === 'ble' && e && e.name === 'NetworkError') return 'เชื่อมต่อ Bluetooth ไม่สำเร็จ ลองกดเชื่อมต่อใหม่ หรือรีเซ็ตบอร์ด';
+  if (e && e.name === 'SecurityError') return 'เบราว์เซอร์ไม่อนุญาต: ต้องเปิดหน้านี้ผ่าน http://localhost (ใช้ไฟล์ start-dashboard.bat)';
+  return msg;
+}
+async function connect() {
+  if (src) { await disconnect(); return; }
+  const kind = $('#source').value;
+  S.source = kind;
+  saveSettings();
+  const onText = t => assembler.push(t);
+  const onClose = reason => {
+    if (src !== s) return;
+    src = null;
+    setConn('err', 'หลุดการเชื่อมต่อ');
+    logLine('หลุดการเชื่อมต่อ: ' + reason, 'sys');
+    s.close().catch(() => {});   // ปิดพอร์ตให้เรียบร้อย จะได้กดเชื่อมต่อใหม่ได้ทันที
+  };
+  const s = kind === 'serial' ? new SerialSource(onText, onClose)
+    : kind === 'ble' ? new BleSource(onText, onClose)
+    : new DemoSource(onText, onClose);
+  setConn('busy', 'กำลังเชื่อมต่อ…');
+  try {
+    await s.open();
+    src = s;
+    noDataCheck = { at: Date.now(), count: store.t.length, warned: false };
+    setConn('on', 'เชื่อมต่อแล้ว · ' + s.label);
+    logLine('เชื่อมต่อแล้ว: ' + s.label, 'sys');
+    scheduleRender(true);
+    await sleep(300);
+    await s.send('?\n');
+  } catch (e) {
+    try { await s.close(); } catch (e2) { /* ignore */ }
+    src = null;
+    setConn('off', 'ยังไม่เชื่อมต่อ');
+    if (e && e.name === 'NotFoundError' && !/adapter|Bluetooth/i.test(e.message || '')) return;  // ผู้ใช้กดยกเลิก
+    const text = friendlyError(e, kind);
+    logLine('เชื่อมต่อไม่สำเร็จ: ' + text, 'sys');
+    showNotice(text);
+  }
+}
+async function disconnect() {
+  const s = src;
+  src = null;
+  try { if (s) await s.close(); } catch (e) { /* ignore */ }
+  setConn('off', 'ยังไม่เชื่อมต่อ');
+  logLine('ตัดการเชื่อมต่อแล้ว', 'sys');
+}
+async function sendCommand(cmd) {
+  if (!src) { showNotice('ยังไม่ได้เชื่อมต่ออุปกรณ์'); return; }
+  logLine(cmd, 'out');
+  try { await src.send(cmd + '\n'); } catch (e) { logLine('ส่งไม่สำเร็จ: ' + e.message, 'sys'); }
+}
+
+// ===================== Console =====================
+const consoleEl = $('#console');
+function logLine(text, kind = 'in') {
+  const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 40;
+  const prefix = kind === 'out' ? '> ' : kind === 'sys' ? '# ' : '';
+  consoleEl.append(mk('div', 'c-' + kind, '[' + clock(Date.now()) + '] ' + prefix + text));
+  while (consoleEl.childElementCount > 1500) consoleEl.firstElementChild.remove();
+  if (atBottom) consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+function showNotice(text) {
+  const el = $('#notice');
+  el.replaceChildren(mk('span', 'ico', '!'), document.createTextNode(text));
+  el.hidden = false;
+}
+
+// ===================== ภาพรวม: การ์ดโมดูล =====================
+const CARD_DERIVED = ['Td', 'AH', 'RHO', 'W', 'E', 'TW', 'HI', 'H', 'Tb', 'ALT'];
+const WITH_U = ['Td', 'AH', 'RHO', 'W'];
+const cardRefs = [];
+let groupRefs = null;
+function buildCards() {
+  const host = $('#cards');
+  for (let m = 0; m < N; m++) {
+    const card = mk('div', 'card');
+    const head = mk('div', 'mc-head');
+    const key = mk('span', 'key');
+    key.style.setProperty('--c', `var(--s${m + 1})`);
+    const badge = mk('span', 'badge');
+    const ico = mk('span', 'ico');
+    const btext = mk('span');
+    badge.append(ico, btext);
+    head.append(key, mk('span', 'mc-name', 'โมดูล ' + (m + 1) + ' · ' + NAMES[m]), badge);
+    const main = mk('div', 'mc-main');
+    const big = {};
+    for (const k of ['T', 'RH', 'P']) {
+      const kv = mk('div', 'kv');
+      const v = mk('div', 'v');
+      const num = mk('span', null, '—');
+      v.append(num, mk('span', 'u', QTY[k].unit));
+      const unc = mk('div', 'unc', '');
+      kv.append(mk('div', 'k', QTY[k].short), v, unc);
+      main.append(kv);
+      big[k] = { num, unc };
+    }
+    const dl = mk('dl', 'mc-derived');
+    const rows = {};
+    for (const k of CARD_DERIVED) {
+      const dt = mk('dt', null, QTY[k].short);
+      const dd = mk('dd');
+      dl.append(dt, dd);
+      rows[k] = dd;
+    }
+    card.append(head, main, dl);
+    host.append(card);
+    cardRefs.push({ badge, ico, btext, big, rows });
+  }
+  const g = mk('div', 'card');
+  const gh = mk('div', 'mc-head');
+  gh.append(mk('span', 'mc-name', 'ภาพรวมทั้ง 4 โมดูล'));
+  const dl = mk('dl', 'summary-list');
+  const refs = {};
+  for (const [k, label] of [['T', 'อุณหภูมิเฉลี่ย'], ['RH', 'ความชื้นเฉลี่ย'], ['P', 'ความดันเฉลี่ย'], ['RHO', 'ความหนาแน่นอากาศเฉลี่ย'], ['Td', 'จุดน้ำค้างเฉลี่ย']]) {
+    const dd = mk('dd');
+    dl.append(mk('dt', null, label), dd);
+    refs[k] = dd;
+  }
+  for (const [k, label] of [['last', 'อัปเดตล่าสุด'], ['rate', 'อ่านค่าทุก'], ['count', 'จำนวนข้อมูล']]) {
+    const dd = mk('dd');
+    dl.append(mk('dt', null, label), dd);
+    refs[k] = dd;
+  }
+  g.append(gh, dl, mk('p', 'hint', 'ค่าในวงเล็บ = ต่างกันมากที่สุดระหว่างโมดูล (สูงสุด − ต่ำสุด)'));
+  host.append(g);
+  groupRefs = refs;
+}
+function setBadge(ref, state, icon, text) {
+  ref.badge.dataset.s = state;
+  ref.ico.textContent = icon;
+  ref.btext.textContent = text;
+}
+function updateCards() {
+  const i = store.t.length - 1;
+  const stale = i >= 0 && Date.now() - store.t[i] > Math.max(5000, 3 * medianDt());
+  for (let m = 0; m < N; m++) {
+    const ref = cardRefs[m];
+    if (i < 0) {
+      setBadge(ref, 'none', '○', 'รอข้อมูล');
+      continue;
+    }
+    const r = rawAt(m, i);
+    const hasA = isNum(r.T) && isNum(r.RH), hasB = isNum(r.P);
+    if (!src || stale) setBadge(ref, 'none', '○', stale ? 'ไม่มีข้อมูลใหม่' : 'ค่าล่าสุด');
+    else if (!hasA && !hasB) setBadge(ref, 'critical', '✕', 'ไม่ตอบสนอง');
+    else if (!hasA) setBadge(ref, 'serious', '!', 'AHT20 ไม่ตอบ');
+    else if (!hasB) setBadge(ref, 'serious', '!', 'BMP280 ไม่ตอบ');
+    else if (r.T < S.limits.tMin || r.T > S.limits.tMax || r.RH < S.limits.hMin || r.RH > S.limits.hMax) setBadge(ref, 'warning', '⚠', 'เกินช่วงที่ตั้งไว้');
+    else setBadge(ref, 'good', '✓', 'ปกติ');
+
+    for (const k of ['T', 'RH', 'P']) {
+      ref.big[k].num.textContent = fmt(r[k], QTY[k].dp);
+      ref.big[k].unc.textContent = isNum(r[k]) ? '±' + fmt(expandedU(k, r), k === 'P' ? 2 : QTY[k].dp) + ' (k=' + S.k + ')' : '';
+    }
+    for (const k of CARD_DERIVED) {
+      const v = store.q[k][m][i];
+      const dd = ref.rows[k];
+      dd.replaceChildren(document.createTextNode(fmt(v, QTY[k].dp) + ' ' + QTY[k].unit));
+      if (WITH_U.includes(k) && isNum(v)) {
+        const u = expandedU(k, r);
+        if (isNum(u)) dd.append(document.createTextNode(' '), mk('small', null, '±' + u.toFixed(QTY[k].dp)));
+      }
+      if (k === 'RHO' && isNum(v) && (r.T < 15 || r.T > 27 || r.P < 600 || r.P > 1100)) {
+        dd.append(mk('div', 'flag', 'นอกช่วงที่สูตรรับรอง (15–27 °C)'));
+      }
+    }
+  }
+  if (!groupRefs) return;
+  for (const k of ['T', 'RH', 'P', 'RHO', 'Td']) {
+    const vals = [];
+    if (i >= 0) for (let m = 0; m < N; m++) if (isNum(store.q[k][m][i])) vals.push(store.q[k][m][i]);
+    const dp = QTY[k].dp;
+    groupRefs[k].textContent = vals.length
+      ? fmt(vals.reduce((a, b) => a + b, 0) / vals.length, dp) + ' ' + QTY[k].unit + ' (' + fmt(Math.max(...vals) - Math.min(...vals), dp) + ')'
+      : '—';
+  }
+  groupRefs.last.textContent = i >= 0 ? clock(store.t[i]) : '—';
+  groupRefs.rate.textContent = store.t.length > 1 ? (medianDt() / 1000).toFixed(1) + ' วินาที' : '—';
+  groupRefs.count.textContent = store.t.length.toLocaleString() + ' ตัวอย่าง';
+}
+
+// ===================== กราฟแต่ละแท็บ =====================
+const OV_KEYS = ['T', 'RH', 'P'];
+const DV_KEYS = ['Td', 'AH', 'RHO', 'W', 'TW', 'HI', 'H', 'DT'];
+const charts = {};
+function buildCharts() {
+  for (const k of OV_KEYS) charts[k] = new Chart($('#ovCharts'), { title: QTY[k].name, unit: QTY[k].unit, dp: QTY[k].dp, emptyText: 'ยังไม่มีข้อมูล · เลือกการเชื่อมต่อด้านบนแล้วกด เชื่อมต่อ (หรือลอง Demo)' });
+  for (const k of DV_KEYS) charts[k] = new Chart($('#dvCharts'), { title: QTY[k].name, unit: QTY[k].unit, dp: QTY[k].dp });
+  charts.adev = new Chart($('#adevCharts'), { title: 'Allan deviation σ(τ)', unit: '', dp: 3, height: 320, logX: true, logY: true, markers: true, endValue: false, emptyText: 'ยังมีข้อมูลต่อเนื่องไม่พอ (ต้องการอย่างน้อย 20 ตัวอย่าง)' });
+}
+function devArrays(k, i0, i1) {
+  const out = [0, 1, 2, 3].map(() => new Float64Array(Math.max(0, i1 - i0)));
+  for (let i = i0; i < i1; i++) {
+    let sum = 0, c = 0;
+    for (let m = 0; m < N; m++) { const v = store.q[k][m][i]; if (isNum(v)) { sum += v; c++; } }
+    const g = c >= 2 ? sum / c : NaN;
+    for (let m = 0; m < N; m++) out[m][i - i0] = store.q[k][m][i] - g;
+  }
+  return out;
+}
+function timeData(k) {
+  const [i0, i1] = windowIdx();
+  const dev = S.mode === 'dev' && k !== 'DT';
+  const ys = dev ? devArrays(k, i0, i1) : store.q[k];
+  const series = [];
+  for (let m = 0; m < N; m++) {
+    if (S.hidden[m]) continue;
+    series.push({ name: NAMES[m], color: seriesColor(m), cssColor: `var(--s${m + 1})`, x: store.t, y: ys[m], off: dev ? i0 : 0, i0, i1 });
+  }
+  return { series, gap: Math.max(5 * medianDt(), 5000) };
+}
+function renderTimeCharts(keys) {
+  const dev = S.mode === 'dev';
+  for (const k of keys) {
+    charts[k].setNote(dev && k !== 'DT' ? 'ต่างจากค่าเฉลี่ยของทุกโมดูล' : '');
+    charts[k].set(timeData(k));
+  }
+}
+
+// ===================== สถิติ =====================
+const STAT_KEYS = ['T', 'RH', 'P', 'Tb', 'Td', 'AH', 'RHO', 'DT'];
+function renderStats() {
+  const host = $('#statTables');
+  host.replaceChildren();
+  const [i0, i1] = windowIdx();
+  const all = {};
+  for (const k of STAT_KEYS) all[k] = [0, 1, 2, 3].map(m => statsOf(k, m, i0, i1));
+  // เงื่อนไขอ้างอิงสำหรับหาความไม่แน่นอน: ค่าเฉลี่ยของทุกโมดูลในช่วงเวลานี้
+  const ref = {};
+  for (const q of RAW) {
+    const ms = all[q] ? all[q].filter(Boolean).map(s => s.mean) : [];
+    ref[q] = ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : NaN;
+  }
+  for (const k of STAT_KEYS) {
+    const q = QTY[k], dp = q.dp + 1;
+    const card = mk('div', 'card');
+    const title = mk('h2', null, q.name);
+    title.append(mk('span', 'chart-unit', q.unit));
+    const wrap = mk('div', 'table-wrap');
+    const table = mk('table', 'tbl');
+    const hr = mk('tr');
+    for (const h of ['โมดูล', 'n', 'ล่าสุด', 'เฉลี่ย', 'SD', 'u(เฉลี่ย)', 'ต่ำสุด', 'สูงสุด', 'ช่วง', 'แนวโน้ม/ชม.', 'ต่างจากกลุ่ม']) hr.append(mk('th', null, h));
+    const thead = mk('thead');
+    thead.append(hr);
+    const tbody = mk('tbody');
+    const stats = all[k];
+    const means = stats.filter(Boolean).map(s => s.mean);
+    const gmean = means.length ? means.reduce((a, b) => a + b, 0) / means.length : NaN;
+    for (let m = 0; m < N; m++) {
+      const s = stats[m];
+      const tr = mk('tr');
+      const td0 = mk('td');
+      const key = mk('span', 'key');
+      key.style.setProperty('--c', `var(--s${m + 1})`);
+      td0.append(key, document.createTextNode(NAMES[m]));
+      tr.append(td0);
+      if (!s) {
+        tr.append(mk('td', null, '0'));
+        for (let c = 0; c < 9; c++) tr.append(mk('td', null, '—'));
+      } else {
+        for (const v of [String(s.n), fmt(s.last, dp), fmt(s.mean, dp), fmt(s.sd, dp + 1), fmt(s.uA, dp + 1), fmt(s.min, dp), fmt(s.max, dp), fmt(s.range, dp), fmtSigned(s.slope, dp + 1), fmtSigned(s.mean - gmean, dp)]) tr.append(mk('td', null, v));
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    wrap.append(table);
+    card.append(title, wrap);
+
+    // ความสอดคล้องระหว่างโมดูล: ผลต่างสูงสุดของค่าเฉลี่ย เทียบกับ U ของสองโมดูล (E_n)
+    const pts = stats.map((s, m) => (s ? { m, v: s.mean } : null)).filter(Boolean);
+    const agree = mk('div', 'agree');
+    if (pts.length >= 2) {
+      let best = { d: -1, a: 0, b: 0 };
+      for (let a = 0; a < pts.length; a++) for (let b = a + 1; b < pts.length; b++) {
+        const dd = Math.abs(pts[a].v - pts[b].v);
+        if (dd > best.d) best = { d: dd, a: pts[a].m, b: pts[b].m };
+      }
+      const sBetween = Math.sqrt(means.reduce((acc, v) => acc + (v - gmean) ** 2, 0) / (means.length - 1));
+      const U = expandedU(k, ref);
+      const En = best.d / (Math.SQRT2 * U);
+      agree.append(
+        document.createTextNode('ค่าเฉลี่ยกลุ่ม '), mk('b', null, fmt(gmean, dp) + ' ' + q.unit),
+        document.createTextNode(' · SD ระหว่างโมดูล ' + fmt(sBetween, dp + 1)),
+        document.createTextNode(' · ต่างกันมากสุด ' + fmt(best.d, dp) + ' (' + NAMES[best.a] + '–' + NAMES[best.b] + ')'),
+      );
+      if (isNum(En)) {
+        agree.append(document.createTextNode(' · U(k=' + S.k + ') ต่อโมดูล ' + fmt(U, dp) + ' · E'), mk('sub', null, 'n'), document.createTextNode(' = ' + En.toFixed(2) + ' '));
+        agree.append(En <= 1 ? mk('span', 'ok', '✓') : mk('span', 'bad', '⚠'), document.createTextNode(En <= 1 ? ' สอดคล้องกันภายในสเปก' : ' ต่างกันเกินสเปก ควรตรวจหรือสอบเทียบ'));
+      }
+    } else {
+      agree.textContent = 'ต้องมีข้อมูลอย่างน้อย 2 โมดูลจึงเทียบกันได้';
+    }
+    card.append(agree);
+    host.append(card);
+  }
+}
+
+// ===================== Allan deviation =====================
+const ADEV_KEYS = ['T', 'RH', 'P', 'Tb', 'Td', 'RHO'];
+function renderStability() {
+  const k = S.adevKey in QTY ? S.adevKey : 'T';
+  const q = QTY[k];
+  const [i0, i1] = windowIdx();
+  const series = [];
+  const summary = [];
+  for (let m = 0; m < N; m++) {
+    const r = adevOf(k, m, i0, i1);
+    summary.push(r);
+    if (!r || S.hidden[m]) continue;
+    series.push({ name: NAMES[m], color: seriesColor(m), cssColor: `var(--s${m + 1})`, x: r.taus, y: r.sig, off: 0, i0: 0, i1: r.taus.length });
+  }
+  charts.adev.cfg.unit = q.unit;
+  charts.adev.setNote(q.name + ' · ' + q.unit);
+  charts.adev.set({ series, gap: Infinity });
+
+  const host = $('#adevSummary');
+  host.replaceChildren();
+  const table = mk('table', 'tbl');
+  const hr = mk('tr');
+  for (const h of ['โมดูล', 'n ที่ใช้', 'τ0 (s)', 'σ(τ0)', 'σ ต่ำสุด', 'ที่ τ (s)']) hr.append(mk('th', null, h));
+  const thead = mk('thead');
+  thead.append(hr);
+  const tbody = mk('tbody');
+  for (let m = 0; m < N; m++) {
+    const r = summary[m];
+    const tr = mk('tr');
+    const td0 = mk('td');
+    const key = mk('span', 'key');
+    key.style.setProperty('--c', `var(--s${m + 1})`);
+    td0.append(key, document.createTextNode(NAMES[m]));
+    tr.append(td0);
+    if (!r || !r.sig.length) {
+      for (let c = 0; c < 5; c++) tr.append(mk('td', null, '—'));
+    } else {
+      let best = 0;
+      for (let j = 1; j < r.sig.length; j++) if (r.sig[j] < r.sig[best]) best = j;
+      for (const v of [String(r.n), r.tau0.toFixed(2), r.sig[0].toPrecision(3) + ' ' + q.unit, r.sig[best].toPrecision(3) + ' ' + q.unit, logLabel(r.taus[best])]) tr.append(mk('td', null, v));
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  host.append(table);
+}
+
+// ===================== วาดตามแท็บที่เปิดอยู่ =====================
+let activeTab = 'overview';
+let renderPending = false;
+let lastSlowRender = 0;
+function scheduleRender(force) {
+  if (force) lastSlowRender = 0;
+  if (renderPending) return;
+  renderPending = true;
+  requestAnimationFrame(() => {
+    renderPending = false;
+    renderNow();
+  });
+}
+function renderNow() {
+  updateMeta();
+  if (activeTab === 'overview') {
+    updateCards();
+    renderTimeCharts(OV_KEYS);
+  } else if (activeTab === 'derived') {
+    renderTimeCharts(DV_KEYS);
+  } else if (activeTab === 'stats' || activeTab === 'stability') {
+    // คำนวณทั้งช่วงข้อมูล จึงทำทุก 2 วินาทีพอ
+    const now = Date.now();
+    if (now - lastSlowRender >= 2000) {
+      lastSlowRender = now;
+      if (activeTab === 'stats') renderStats(); else renderStability();
+    }
+  }
+}
+function updateMeta() {
+  const n = store.t.length;
+  const [i0, i1] = windowIdx();
+  let text = n.toLocaleString() + ' ตัวอย่าง';
+  if (n) text += ' · ในช่วงที่เลือก ' + (i1 - i0).toLocaleString() + ' · ล่าสุด ' + clock(store.t[n - 1]);
+  if (store.info && store.info.name) text += ' · ' + store.info.name;
+  $('#meta').textContent = text;
+}
+
+// ===================== ปุ่มและการควบคุม =====================
+function setTab(name) {
+  activeTab = name;
+  for (const b of document.querySelectorAll('.tab')) {
+    const on = b.dataset.tab === name;
+    b.setAttribute('aria-selected', String(on));
+    b.tabIndex = on ? 0 : -1;
+  }
+  for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
+  $('#modeWrap').hidden = !(name === 'overview' || name === 'derived');
+  $('#filters').hidden = name === 'console' || name === 'about';
+  for (const c of allCharts) c.clearHover();
+  scheduleRender(true);
+}
+function syncSeg(id, value) {
+  for (const b of document.querySelectorAll('#' + id + ' button')) b.setAttribute('aria-pressed', String(b.dataset.v === String(value)));
+}
+function applyTheme() {
+  if (S.theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = S.theme;
+  $('#btnTheme').textContent = 'ธีม: ' + ({ auto: 'อัตโนมัติ', light: 'สว่าง', dark: 'มืด' })[S.theme];
+  scheduleRender(true);
+}
+function stamp() {
+  const d = new Date();
+  return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
+}
+function exportCsv() {
+  if (!store.t.length) { showNotice('ยังไม่มีข้อมูลให้ดาวน์โหลด'); return; }
+  const blob = new Blob([buildCsv()], { type: 'text/csv' });
+  const a = mk('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sensors_' + stamp() + '.csv';
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+function buildCsv() {
+  const n = store.t.length;
+  const cols = [['T', 'T_C', 3], ['RH', 'RH_pct', 3], ['P', 'P_hPa', 3], ['Tb', 'Tb_C', 2], ['Td', 'Td_C', 3], ['E', 'e_hPa', 3], ['AH', 'AH_gm3', 3],
+    ['W', 'W_gkg', 3], ['RHO', 'rho_kgm3', 5], ['TW', 'Tw_C', 2], ['HI', 'HI_C', 2], ['H', 'h_kJkg', 3], ['ALT', 'alt_m', 1]];
+  const header = ['local_time', 'unix_ms', 'device_ms'];
+  for (let m = 0; m < N; m++) for (const [, name] of cols) header.push(NAMES[m] + '_' + name);
+  const lines = [header.join(',')];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(store.t[i]);
+    const local = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + clock(store.t[i]) + '.' + String(d.getMilliseconds()).padStart(3, '0');
+    const row = [local, store.t[i], isNum(store.dev[i]) ? store.dev[i] : ''];
+    for (let m = 0; m < N; m++) for (const [k, , dp] of cols) { const v = store.q[k][m][i]; row.push(isNum(v) ? v.toFixed(dp) : ''); }
+    lines.push(row.join(','));
+  }
+  return lines.join('\r\n') + '\r\n';
+}
+let clearArmed = null;
+function clearData() {
+  const btn = $('#btnClear');
+  if (!clearArmed) {
+    btn.textContent = 'กดอีกครั้งเพื่อยืนยัน';
+    clearArmed = setTimeout(() => { clearArmed = null; btn.textContent = 'ล้างข้อมูล'; }, 3000);
+    return;
+  }
+  clearTimeout(clearArmed);
+  clearArmed = null;
+  btn.textContent = 'ล้างข้อมูล';
+  clearStore();
+  logLine('ล้างข้อมูลแล้ว', 'sys');
+  scheduleRender(true);
+}
+function bindSettings() {
+  const get = path => path.split('.').reduce((o, k) => o[k], S);
+  const set = (path, v) => {
+    const keys = path.split('.');
+    const last = keys.pop();
+    keys.reduce((o, k) => o[k], S)[last] = v;
+  };
+  for (const el of document.querySelectorAll('#settingsForm [data-path]')) {
+    el.value = get(el.dataset.path);
+    el.addEventListener('change', () => {
+      const path = el.dataset.path;
+      let v = el.tagName === 'SELECT' ? el.value : parseFloat(el.value);
+      if (el.tagName !== 'SELECT' && !isNum(v)) { el.value = get(path); return; }
+      if (path.startsWith('spec.') || path === 'k') v = Math.max(0, v);
+      set(path, v);
+      saveSettings();
+      if (path === 'xco2') recomputeDerived();
+      scheduleRender(true);
+    });
+  }
+}
+
+async function checkSupport() {
+  const notes = [];
+  const sel = $('#source');
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mobile = ios || /Android/i.test(navigator.userAgent);
+  // มือถือใช้ Web Serial ผ่านสาย USB ไม่ได้ (Android รองรับแค่ Bluetooth serial, iOS ไม่รองรับ)
+  const hasSerial = 'serial' in navigator && !mobile, hasBle = 'bluetooth' in navigator;
+  const serialOpt = sel.querySelector('[value="serial"]');
+  serialOpt.disabled = !hasSerial;
+  if (mobile) serialOpt.textContent = 'USB (ใช้ได้เฉพาะบนคอมพิวเตอร์)';
+  sel.querySelector('[value="ble"]').disabled = !hasBle;
+  if (location.protocol === 'file:') {
+    notes.push('เปิดไฟล์นี้ตรงๆ จะใช้ USB และ Bluetooth ไม่ได้ ให้ดับเบิลคลิก start-dashboard.bat (เปิดผ่าน http://127.0.0.1:8765) · ตอนนี้ใช้โหมด Demo ได้');
+  } else if (!window.isSecureContext) {
+    notes.push('หน้านี้ไม่ได้เปิดผ่าน https:// หรือ localhost เบราว์เซอร์จึงไม่ให้ใช้ USB/Bluetooth · ตอนนี้ใช้โหมด Demo ได้');
+  } else if (ios && !hasBle) {
+    notes.push('Safari และ Chrome บน iPhone ใช้ Bluetooth กับหน้าเว็บไม่ได้ ให้เปิดลิงก์นี้ด้วยแอป Bluefy – Web BLE Browser (ฟรีใน App Store)');
+  } else if (mobile && !hasBle) {
+    notes.push('เบราว์เซอร์นี้ไม่รองรับ Bluetooth ให้เปิดลิงก์นี้ด้วย Google Chrome');
+  } else if (!hasSerial && !hasBle) {
+    notes.push('เบราว์เซอร์นี้ไม่รองรับ Web Serial / Web Bluetooth ให้เปิดด้วย Google Chrome หรือ Microsoft Edge บนคอมพิวเตอร์');
+  }
+  if (hasBle && navigator.bluetooth.getAvailability) {
+    try {
+      if (!(await navigator.bluetooth.getAvailability())) sel.querySelector('[value="ble"]').textContent = 'Bluetooth (BLE) — ไม่พบ Bluetooth ในเครื่องนี้';
+    } catch (e) { /* ignore */ }
+  }
+  const saved = sel.querySelector(`[value="${S.source}"]`);
+  if (saved && !saved.disabled) sel.value = S.source;
+  else sel.value = hasSerial ? 'serial' : hasBle ? 'ble' : 'demo';
+  if (notes.length) showNotice(notes.join(' '));
+}
+
+function init() {
+  buildCards();
+  buildCharts();
+  for (const k of ADEV_KEYS) {
+    const o = mk('option', null, QTY[k].name);
+    o.value = k;
+    $('#adevKey').append(o);
+  }
+  $('#adevKey').value = ADEV_KEYS.includes(S.adevKey) ? S.adevKey : 'T';
+  $('#adevKey').addEventListener('change', e => { S.adevKey = e.target.value; saveSettings(); scheduleRender(true); });
+
+  const tabs = [...document.querySelectorAll('.tab')];
+  tabs.forEach((b, k) => {
+    b.addEventListener('click', () => setTab(b.dataset.tab));
+    b.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const next = tabs[(k + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      next.focus();
+      setTab(next.dataset.tab);
+    });
+  });
+  for (const b of document.querySelectorAll('#segWindow button')) b.addEventListener('click', () => { S.window = +b.dataset.v; saveSettings(); syncSeg('segWindow', S.window); scheduleRender(true); });
+  for (const b of document.querySelectorAll('#segMode button')) b.addEventListener('click', () => { S.mode = b.dataset.v; saveSettings(); syncSeg('segMode', S.mode); scheduleRender(true); });
+  syncSeg('segWindow', S.window);
+  syncSeg('segMode', S.mode);
+
+  $('#btnConnect').addEventListener('click', connect);
+  $('#btnExport').addEventListener('click', exportCsv);
+  $('#btnClear').addEventListener('click', clearData);
+  $('#btnTheme').addEventListener('click', () => {
+    S.theme = { auto: 'light', light: 'dark', dark: 'auto' }[S.theme] || 'auto';
+    saveSettings();
+    applyTheme();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => scheduleRender(true));
+
+  $('#btnSend').addEventListener('click', () => { const v = $('#cmdInput').value.trim(); if (v) { sendCommand(v); $('#cmdInput').value = ''; } });
+  $('#cmdInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#btnSend').click(); });
+  $('#intervalSel').addEventListener('change', e => sendCommand('I' + e.target.value));
+  $('#btnReset').addEventListener('click', async () => {
+    if (!(src instanceof SerialSource)) return;
+    logLine('รีเซ็ตบอร์ด', 'sys');
+    try { await src.reset(); } catch (e) { logLine('รีเซ็ตไม่สำเร็จ: ' + e.message, 'sys'); }
+  });
+  $('#showJson').checked = S.showJson;
+  $('#showJson').addEventListener('change', e => { S.showJson = e.target.checked; saveSettings(); });
+  $('#btnClearConsole').addEventListener('click', () => consoleEl.replaceChildren());
+  bindSettings();
+
+  if ('serial' in navigator) {
+    navigator.serial.addEventListener('disconnect', e => {
+      if (src instanceof SerialSource && e.target === src.port) src.onClose('ถอดสาย USB');
+    });
+  }
+  window.addEventListener('beforeunload', () => { if (src) src.close(); });
+  document.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    for (const c of allCharts) if (c.ov !== e.target && (c.hoverClient || c.hoverX != null)) c.clearHover();
+  });
+
+  applyTheme();
+  setConn('off', 'ยังไม่เชื่อมต่อ');
+  setTab('overview');
+  checkSupport();
+  setInterval(() => {
+    if (activeTab === 'overview') updateCards();
+    checkNoData();
+  }, 1000);
+  logLine('พร้อมใช้งาน เลือกการเชื่อมต่อแล้วกด "เชื่อมต่อ"', 'sys');
+}
+
+// สำหรับทดสอบจาก DevTools
+window.dash = { handleLine, store, Phys, statsOf, adevOf, expandedU, buildCsv, clearStore };
+init();
+</script>
+</body>
+</html>
