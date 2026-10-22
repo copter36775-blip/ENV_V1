@@ -328,6 +328,7 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
           <dl class="summary-list" style="margin-top:10px">
             <dt>คีย์ในบอร์ด</dt><dd id="clKey">—</dd>
             <dt>ส่งล่าสุด</dt><dd id="clLast">—</dd>
+            <dt>ข้อมูลสด (MQTT)</dt><dd id="mqStatus">—</dd>
             <dt>หน่วยความจำว่าง</dt><dd id="clHeap">—</dd>
           </dl>
           <div class="field" style="margin-top:12px"><label for="cloudKey">Write API Key ของ Channel</label><input type="password" id="cloudKey" autocomplete="off" placeholder="16 ตัวอักษร"></div>
@@ -335,7 +336,7 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
             <button class="btn primary" type="button" id="btnSaveKey">บันทึกลงบอร์ด</button>
             <button class="btn" type="button" id="btnClearKey">หยุดส่ง</button>
           </div>
-          <p class="hint">บอร์ดส่งค่าเฉลี่ยทุก 20 วินาที · field1–8 = T, RH ของ M1–M4 · status = ความดันและอุณหภูมิ BMP280</p>
+          <p class="hint">บอร์ดส่งค่าเฉลี่ยทุก 20 วินาทีขึ้น ThingSpeak ไว้ดูย้อนหลัง และส่งค่าสดทุกวินาทีทาง MQTT (broker สาธารณะฟรี) · field1–8 = T, RH ของ M1–M4 · status = ความดัน อุณหภูมิ BMP280 และรหัสข้อมูลสด</p>
         </div>
         <div class="card">
           <h2>ดูข้อมูลจากที่ไหนก็ได้</h2>
@@ -1345,6 +1346,7 @@ class DemoSource {
       if (cmd === '?') {
         out({ wifi: this.wifi || { ssid: '', status: 'none' } });
         out({ cloud: this.cloud || { key: false, every: 20, heap: 151000 } });
+        out({ mqtt: { broker: 'emqx', id: 'demo00000000', state: this.wifi && this.wifi.status === 'connected' ? 0 : -99 } });
       } else if (cmd === 'WSCAN') {
         setTimeout(() => out({ wifi: { scan: [
           { s: 'Lab-WiFi (Demo)', r: -52, l: 1, c: 1 }, { s: 'Home-2.4G (Demo)', r: -63, l: 1, c: 6 }, { s: 'Guest (Demo)', r: -79, l: 0, c: 11 },
@@ -1367,8 +1369,109 @@ class DemoSource {
   async close() { clearInterval(this.timer); }
 }
 
+// ข้อมูลสดทุกวินาที: MQTT 3.1.1 ผ่าน WebSocket แบบย่อ (subscribe QoS 0 อย่างเดียว) ไม่ต้องโหลดไลบรารีเพิ่ม
+const BROKER_WSS = { emqx: 'wss://broker.emqx.io:8084/mqtt', mosq: 'wss://test.mosquitto.org:8081' };
+class MqttLive {
+  constructor(url, topic, onMessage, onState) {
+    this.url = url;
+    this.topic = topic;
+    this.onMessage = onMessage;
+    this.onState = onState;
+    this.stopped = true;
+    this.up = false;
+    this.buf = new Uint8Array(0);
+  }
+  static str(s) {
+    const b = new TextEncoder().encode(s);
+    return [b.length >> 8, b.length & 255, ...b];
+  }
+  static packet(head, body) {
+    const len = [];
+    let n = body.length;
+    do {
+      let d = n % 128;
+      n = Math.floor(n / 128);
+      if (n) d |= 128;
+      len.push(d);
+    } while (n);
+    return Uint8Array.from([head, ...len, ...body]);
+  }
+  start() { this.stopped = false; this.open(); }
+  stop() {
+    this.stopped = true;
+    clearTimeout(this.retry);
+    clearInterval(this.ping);
+    try {
+      if (this.ws && this.ws.readyState === 1) this.ws.send(Uint8Array.of(0xe0, 0));   // DISCONNECT
+      if (this.ws) this.ws.close();
+    } catch (e) { /* ignore */ }
+  }
+  open() {
+    let ws;
+    try { ws = new WebSocket(this.url, ['mqtt']); } catch (e) { this.retryLater(); return; }
+    this.ws = ws;
+    this.buf = new Uint8Array(0);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => {
+      const cid = 'web-' + Math.random().toString(36).slice(2, 10);
+      ws.send(MqttLive.packet(0x10, [...MqttLive.str('MQTT'), 4, 0x02, 0, 60, ...MqttLive.str(cid)]));   // CONNECT
+    };
+    ws.onmessage = e => this.onData(new Uint8Array(e.data));
+    ws.onclose = () => {
+      clearInterval(this.ping);
+      this.setUp(false);
+      if (!this.stopped) this.retryLater();
+    };
+  }
+  retryLater() {
+    clearTimeout(this.retry);
+    this.retry = setTimeout(() => this.open(), 5000);
+  }
+  setUp(up) {
+    if (up === this.up) return;
+    this.up = up;
+    this.onState(up);
+  }
+  // หนึ่งข้อความ WebSocket อาจมีหลายแพ็กเก็ต MQTT หรือแค่ครึ่งแพ็กเก็ต
+  onData(chunk) {
+    const b = new Uint8Array(this.buf.length + chunk.length);
+    b.set(this.buf);
+    b.set(chunk, this.buf.length);
+    let i = 0;
+    while (i + 2 <= b.length) {
+      let len = 0, mult = 1, j = i + 1, byte = 0, complete = true;
+      do {
+        if (j >= b.length) { complete = false; break; }
+        byte = b[j++];
+        len += (byte & 127) * mult;
+        mult *= 128;
+      } while (byte & 128);
+      if (!complete || j + len > b.length) break;
+      this.handle(b[i], b.subarray(j, j + len));
+      i = j + len;
+    }
+    this.buf = b.slice(i);
+  }
+  handle(head, body) {
+    const type = head >> 4;
+    if (type === 2) {            // CONNACK
+      if (body[1] !== 0) return;
+      this.ws.send(MqttLive.packet(0x82, [0, 1, ...MqttLive.str(this.topic), 0]));   // SUBSCRIBE QoS 0
+      clearInterval(this.ping);
+      this.ping = setInterval(() => { if (this.ws.readyState === 1) this.ws.send(Uint8Array.of(0xc0, 0)); }, 30000);
+    } else if (type === 9) {     // SUBACK
+      this.setUp(true);
+    } else if (type === 3) {     // PUBLISH
+      let p = 2 + ((body[0] << 8) | body[1]);
+      if ((head >> 1) & 3) p += 2;   // QoS > 0 มี packet id
+      this.onMessage(new TextDecoder().decode(body.subarray(p)));
+    }
+  }
+}
+
 // ดูข้อมูลจาก ThingSpeak: โหลดย้อนหลังแล้วดึงข้อมูลใหม่ทุก 15 วินาที
-// field1-8 = T,RH ของ M1..M4 · status = "P1,P2,P3,P4|Tb1,Tb2,Tb3,Tb4" (รูปแบบเดียวกับเฟิร์มแวร์ sensor_web)
+// field1-8 = T,RH ของ M1..M4 · status = "P1,P2,P3,P4|Tb1,Tb2,Tb3,Tb4|<broker>:<id>" (รูปแบบเดียวกับเฟิร์มแวร์ sensor_web)
+// ถ้ามีส่วน <broker>:<id> จะฟังข้อมูลสดทุกวินาทีทาง MQTT ต่อเอง
 function parseFeed(f) {
   const num = v => (v == null || v === '' ? NaN : parseFloat(v));
   const [pPart = '', tbPart = ''] = String(f.status || '').split('|');
@@ -1378,7 +1481,44 @@ function parseFeed(f) {
   return d;
 }
 class CloudSource {
-  constructor(onText, onClose) { this.onText = onText; this.onClose = onClose; this.label = 'Cloud'; this.lastId = 0; this.fails = 0; }
+  constructor(onText, onClose) {
+    this.onText = onText;
+    this.onClose = onClose;
+    this.label = 'Cloud';
+    this.lastId = 0;
+    this.fails = 0;
+    this.live = null;
+    this.liveCode = '';
+    this.liveAt = 0;
+  }
+  liveCodeOf(feeds) {
+    for (let i = feeds.length - 1; i >= 0; i--) {
+      const part = String(feeds[i].status || '').split('|')[2];
+      if (part) return part.trim();
+    }
+    return '';
+  }
+  startLive(code) {
+    if (!code || code === this.liveCode) return;
+    const [broker, id] = code.split(':');
+    if (!BROKER_WSS[broker] || !/^[a-z0-9]{12}$/.test(id || '')) return;
+    if (this.live) this.live.stop();
+    this.liveCode = code;
+    this.live = new MqttLive(BROKER_WSS[broker], 'esp32env/' + id + '/d', text => this.onLive(text), up => {
+      logLine(up ? 'ฟังข้อมูลสดทาง MQTT (' + broker + ') แล้ว' : 'MQTT หลุด กำลังต่อใหม่…', 'sys');
+    });
+    this.live.start();
+  }
+  onLive(text) {
+    if (src !== this) return;
+    this.liveAt = Date.now();
+    handleLine(text);
+    this.updateLabel();
+  }
+  liveActive() { return this.liveAt > 0 && Date.now() - this.liveAt < 10000; }
+  updateLabel() {
+    if (src === this) setConn('on', 'เชื่อมต่อแล้ว · ' + this.label + (this.liveActive() ? ' · สดทุกวินาที' : ' · ทุก 20 วินาที'));
+  }
   url(results) {
     const key = S.cloud.readKey ? '&api_key=' + encodeURIComponent(S.cloud.readKey.trim()) : '';
     return 'https://api.thingspeak.com/channels/' + encodeURIComponent(String(S.cloud.channel).trim()) +
@@ -1416,18 +1556,30 @@ class CloudSource {
     const n = this.ingest(j.feeds);
     logLine('โหลดข้อมูลย้อนหลังจาก ThingSpeak ' + n.toLocaleString() + ' จุด', 'sys');
     this.timer = setInterval(() => this.poll(), 15000);
+    this.labelTimer = setInterval(() => this.updateLabel(), 2000);
+    this.startLive(this.liveCodeOf(j.feeds));
   }
   async poll() {
     try {
       const j = await this.fetchFeeds(30);
-      if (this.ingest(j.feeds)) scheduleRender();
+      this.startLive(this.liveCodeOf(j.feeds));
+      if (this.liveActive()) {
+        // ข้อมูลสดมาทุกวินาทีอยู่แล้ว: ข้ามค่าเฉลี่ย 20 วินาที แค่จำ entry ล่าสุดไว้
+        for (const f of j.feeds) if (f.entry_id > this.lastId) this.lastId = f.entry_id;
+      } else if (this.ingest(j.feeds)) {
+        scheduleRender();
+      }
       this.fails = 0;
     } catch (e) {
       if (++this.fails === 3) logLine('ดึงข้อมูลจาก Cloud ไม่ได้: ' + e.message, 'sys');
     }
   }
   async send() { logLine('โหมด Cloud ส่งคำสั่งถึงบอร์ดไม่ได้ ต้องเชื่อมต่อผ่าน USB หรือ Bluetooth', 'sys'); }
-  async close() { clearInterval(this.timer); }
+  async close() {
+    clearInterval(this.timer);
+    clearInterval(this.labelTimer);
+    if (this.live) this.live.stop();
+  }
 }
 
 // ===================== รับบรรทัดจากอุปกรณ์ =====================
@@ -1480,6 +1632,12 @@ function handleLine(line, tMs, silent) {
     if (obj && obj.cloud) {
       dev.cloud = obj.cloud;
       dev.cloudAt = Date.now();
+      logLine(text, 'in');
+      renderDevice();
+      return;
+    }
+    if (obj && obj.mqtt) {
+      dev.mqtt = obj.mqtt;
       logLine(text, 'in');
       renderDevice();
       return;
@@ -1539,7 +1697,7 @@ async function connect() {
     : kind === 'ble' ? new BleSource(onText, onClose)
     : kind === 'cloud' ? new CloudSource(onText, onClose)
     : new DemoSource(onText, onClose);
-  if (!(s instanceof CloudSource)) { dev.wifi = null; dev.cloud = null; dev.scan = null; renderDevice(); renderWifiList(); }
+  if (!(s instanceof CloudSource)) { dev.wifi = null; dev.cloud = null; dev.mqtt = null; dev.scan = null; renderDevice(); renderWifiList(); }
   setConn('busy', 'กำลังเชื่อมต่อ…');
   resetDevClock();
   store.info = null;
@@ -1585,7 +1743,7 @@ async function sendCommand(cmd, shown) {
 }
 
 // ===================== อุปกรณ์: WiFi และ Cloud ของบอร์ด =====================
-const dev = { wifi: null, scan: null, scanning: false, cloud: null, cloudAt: 0, join: null };
+const dev = { wifi: null, scan: null, scanning: false, cloud: null, cloudAt: 0, mqtt: null, join: null };
 const WIFI_TEXT = {
   connected: 'เชื่อมต่อแล้ว', connecting: 'กำลังเชื่อมต่อ…', disconnected: 'ยังไม่ได้เชื่อมต่อ',
   no_ssid: 'ไม่พบ WiFi นี้', failed: 'เชื่อมต่อไม่สำเร็จ', none: 'ยังไม่ได้ตั้งค่า',
@@ -1631,6 +1789,11 @@ function renderDevice() {
   } else {
     for (const id of ['#clKey', '#clLast', '#clHeap']) $(id).textContent = '—';
   }
+  const mq = dev.mqtt;
+  $('#mqStatus').textContent = !mq ? '—'
+    : mq.state === 0 ? 'ส่งอยู่ทุกวินาที · ' + mq.broker
+    : mq.state === -99 ? 'รอ WiFi'
+    : 'ต่อ ' + mq.broker + ' ไม่ได้ (state ' + mq.state + ')';
 }
 function renderWifiList() {
   const host = $('#wifiList');
