@@ -191,6 +191,17 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
 .field input, .field select { width: 100%; }
 .section-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 20px 0 10px; }
 .hint { color: var(--text-2); font-size: 12px; }
+.wifi-list { display: flex; flex-direction: column; margin-top: 10px; }
+.wifi-list:not(:empty) { border-top: 1px solid var(--grid); }
+.wifi-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 4px; border: 0; border-bottom: 1px solid var(--grid); background: none; cursor: pointer; text-align: left; }
+.wifi-list button:hover { background: var(--raised); }
+.wifi-list .ssid { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wifi-list .sig { font-family: var(--mono); color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.wifi-list .note { padding: 8px 4px; color: var(--text-2); font-size: 13px; }
+.wifi-join { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--raised); display: grid; gap: 8px; }
+.wifi-join input[type="password"], .wifi-join input[type="text"] { flex: 1 1 180px; min-width: 0; }
+.steps { padding-left: 20px; margin: 6px 0; font-size: 13px; }
+.steps li { margin: 4px 0; }
 [hidden] { display: none !important; }
 @media (max-width: 640px) {
   .kv .v { font-size: 18px; }
@@ -210,6 +221,7 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
       <select id="source">
         <option value="serial">USB (COM port)</option>
         <option value="ble">Bluetooth (BLE)</option>
+        <option value="cloud">Cloud (ThingSpeak)</option>
         <option value="demo">Demo (ข้อมูลจำลอง)</option>
       </select>
       <button id="btnConnect" class="btn primary" type="button">เชื่อมต่อ</button>
@@ -228,6 +240,7 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
     <button class="tab" role="tab" data-tab="derived" aria-selected="false">ค่าทางฟิสิกส์</button>
     <button class="tab" role="tab" data-tab="stats" aria-selected="false">สถิติ</button>
     <button class="tab" role="tab" data-tab="stability" aria-selected="false">ความเสถียร (Allan)</button>
+    <button class="tab" role="tab" data-tab="device" aria-selected="false">อุปกรณ์ / WiFi</button>
     <button class="tab" role="tab" data-tab="console" aria-selected="false">Console</button>
     <button class="tab" role="tab" data-tab="about" aria-selected="false">สูตรและตั้งค่า</button>
   </nav>
@@ -278,6 +291,67 @@ select, input[type="number"], input[type="text"] { padding: 6px 8px; border-radi
         <h2>สรุปต่อโมดูล</h2>
         <div class="table-wrap" id="adevSummary"></div>
         <p class="hint">Allan deviation σ(τ) บอกว่าค่าเฉลี่ยในช่วงเวลา τ แกว่งไปมาเท่าไร ถ้าเส้นลดลงด้วยความชัน −½ คือสัญญาณรบกวนแบบสุ่ม (เฉลี่ยนานขึ้นช่วยได้) ถ้าเส้นแบนคือขีดจำกัดของเซนเซอร์ ถ้าเส้นเริ่มชันขึ้นคือการเปลี่ยนแปลงจริงของสภาพห้องหรือ drift ค่าต่ำสุดบอกเวลาเฉลี่ยที่ให้ค่าเสถียรที่สุด</p>
+      </div>
+    </section>
+
+    <section data-panel="device" hidden>
+      <p class="hint">เชื่อมต่อบอร์ดผ่าน USB หรือ Bluetooth ด้านบนก่อน แล้วตั้ง WiFi และ Cloud ของบอร์ดได้จากหน้านี้ · บอร์ดจำค่าไว้แม้ถอดไฟ</p>
+      <div class="grid cards">
+        <div class="card">
+          <h2>WiFi ของบอร์ด</h2>
+          <dl class="summary-list" style="margin-top:10px">
+            <dt>สถานะ</dt><dd id="wfStatus">—</dd>
+            <dt>เครือข่าย</dt><dd id="wfSsid">—</dd>
+            <dt>IP</dt><dd id="wfIp">—</dd>
+            <dt>สัญญาณ</dt><dd id="wfRssi">—</dd>
+          </dl>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" type="button" id="btnScan">สแกน WiFi</button>
+            <button class="btn" type="button" id="btnForget">ลืม WiFi</button>
+          </div>
+          <div id="wifiList" class="wifi-list"></div>
+          <div id="wifiJoin" class="wifi-join" hidden>
+            <div>เชื่อมต่อ <b id="joinName"></b></div>
+            <div class="row" id="joinPassRow">
+              <input type="password" id="wifiPass" placeholder="รหัสผ่าน WiFi" autocomplete="off" aria-label="รหัสผ่าน WiFi">
+              <label class="hint"><input type="checkbox" id="showPass"> แสดงรหัส</label>
+            </div>
+            <div class="row">
+              <button class="btn primary" type="button" id="btnJoin">เชื่อมต่อ</button>
+              <button class="btn" type="button" id="btnJoinCancel">ยกเลิก</button>
+            </div>
+          </div>
+          <p class="hint">ESP32 ใช้ได้เฉพาะ WiFi 2.4 GHz · WiFi ที่ต้อง login ผ่านหน้าเว็บ (เช่น WiFi สาธารณะ) ใช้ไม่ได้ · รหัสผ่านส่งตรงไปเก็บในบอร์ด หน้าเว็บไม่ได้เก็บไว้</p>
+        </div>
+        <div class="card">
+          <h2>ส่งข้อมูลขึ้น Cloud (ThingSpeak)</h2>
+          <dl class="summary-list" style="margin-top:10px">
+            <dt>คีย์ในบอร์ด</dt><dd id="clKey">—</dd>
+            <dt>ส่งล่าสุด</dt><dd id="clLast">—</dd>
+            <dt>หน่วยความจำว่าง</dt><dd id="clHeap">—</dd>
+          </dl>
+          <div class="field" style="margin-top:12px"><label for="cloudKey">Write API Key ของ Channel</label><input type="password" id="cloudKey" autocomplete="off" placeholder="16 ตัวอักษร"></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn primary" type="button" id="btnSaveKey">บันทึกลงบอร์ด</button>
+            <button class="btn" type="button" id="btnClearKey">หยุดส่ง</button>
+          </div>
+          <p class="hint">บอร์ดส่งค่าเฉลี่ยทุก 20 วินาที · field1–8 = T, RH ของ M1–M4 · status = ความดันและอุณหภูมิ BMP280</p>
+        </div>
+        <div class="card">
+          <h2>ดูข้อมูลจากที่ไหนก็ได้</h2>
+          <div class="form-grid">
+            <div class="field"><label for="tsChannel">Channel ID</label><input type="text" inputmode="numeric" id="tsChannel" autocomplete="off"></div>
+            <div class="field"><label for="tsReadKey">Read API Key (เฉพาะ Channel แบบ Private)</label><input type="text" id="tsReadKey" autocomplete="off"></div>
+          </div>
+          <p class="hint">ใส่ครั้งเดียวต่อเครื่อง (จำไว้ในเบราว์เซอร์นี้) แล้วเลือก "Cloud (ThingSpeak)" ด้านบนแล้วกดเชื่อมต่อ ใช้ได้ทั้งคอม มือถือ Android และ iPhone</p>
+          <h3>ตั้งค่า ThingSpeak ครั้งแรก</h3>
+          <ol class="steps">
+            <li>สมัครฟรีที่ <a href="https://thingspeak.mathworks.com" target="_blank" rel="noopener">thingspeak.mathworks.com</a></li>
+            <li>Channels → New Channel → ติ๊ก Field 1–8 ตั้งชื่อ M1 T, M1 RH, M2 T, M2 RH, M3 T, M3 RH, M4 T, M4 RH → Save Channel</li>
+            <li>แท็บ API Keys: คัดลอก Write API Key มาใส่ช่องด้านซ้าย แล้วกด "บันทึกลงบอร์ด"</li>
+            <li>คัดลอก Channel ID (และ Read API Key ถ้า Channel เป็น Private) มาใส่ช่องด้านบน</li>
+          </ol>
+        </div>
       </div>
     </section>
 
@@ -468,6 +542,7 @@ const DEFAULTS = {
   source: 'serial', window: 900, mode: 'abs', theme: 'auto', hidden: [false, false, false, false],
   limits: { tMin: 15, tMax: 35, hMin: 20, hMax: 80 },
   xco2: 400, spec: { T: 0.3, RH: 2, P: 1, Tb: 1 }, dist: 'rect', k: 2, showJson: false, adevKey: 'T',
+  cloud: { channel: '', readKey: '' },
 };
 function loadSettings() {
   let saved = {};
@@ -1210,9 +1285,10 @@ class BleSource {
   async send(text) {
     if (!this.rx) return;
     const bytes = new TextEncoder().encode(text);
+    // ส่งทีละ 20 ไบต์แบบรอการตอบรับ คำสั่งยาวๆ (เช่นตั้ง WiFi) จะได้ไม่ตกหล่น
     for (let i = 0; i < bytes.length; i += 20) {
       const chunk = bytes.slice(i, i + 20);
-      if (this.rx.writeValueWithoutResponse) await this.rx.writeValueWithoutResponse(chunk);
+      if (this.rx.writeValueWithResponse) await this.rx.writeValueWithResponse(chunk);
       else await this.rx.writeValue(chunk);
     }
   }
@@ -1262,15 +1338,111 @@ class DemoSource {
     this.timer = setInterval(() => this.onText(this.line(Date.now()) + '\n'), this.interval);
   }
   async send(text) {
+    const out = obj => this.onText(JSON.stringify(obj) + '\n');
     for (const cmd of text.split('\n').map(c => c.trim()).filter(Boolean)) {
       if (/^I\d+$/i.test(cmd)) { this.interval = clamp(+cmd.slice(1), 500, 60000); this.start(); }
       if (cmd === '?' || /^I\d+$/i.test(cmd)) this.onText(this.info() + '\n');
+      if (cmd === '?') {
+        out({ wifi: this.wifi || { ssid: '', status: 'none' } });
+        out({ cloud: this.cloud || { key: false, every: 20, heap: 151000 } });
+      } else if (cmd === 'WSCAN') {
+        setTimeout(() => out({ wifi: { scan: [
+          { s: 'Lab-WiFi (Demo)', r: -52, l: 1, c: 1 }, { s: 'Home-2.4G (Demo)', r: -63, l: 1, c: 6 }, { s: 'Guest (Demo)', r: -79, l: 0, c: 11 },
+        ] } }), 1200);
+      } else if (cmd.startsWith('WSET ')) {
+        let ssid = '';
+        try { ssid = JSON.parse(cmd.slice(5)).s || ''; } catch (e) { /* ignore */ }
+        out({ wifi: { ssid, status: 'connecting' } });
+        setTimeout(() => { this.wifi = { ssid, status: 'connected', ip: '192.168.1.50', rssi: -58 }; out({ wifi: this.wifi }); }, 1500);
+      } else if (cmd === 'WFORGET') {
+        this.wifi = { ssid: '', status: 'none' };
+        out({ wifi: this.wifi });
+      } else if (cmd.startsWith('CKEY')) {
+        const key = cmd.slice(4).trim();
+        this.cloud = { key: !!key, key4: key.slice(-4), every: 20, heap: 151000 };
+        out({ cloud: this.cloud });
+      }
     }
   }
   async close() { clearInterval(this.timer); }
 }
 
+// ดูข้อมูลจาก ThingSpeak: โหลดย้อนหลังแล้วดึงข้อมูลใหม่ทุก 15 วินาที
+// field1-8 = T,RH ของ M1..M4 · status = "P1,P2,P3,P4|Tb1,Tb2,Tb3,Tb4" (รูปแบบเดียวกับเฟิร์มแวร์ sensor_web)
+function parseFeed(f) {
+  const num = v => (v == null || v === '' ? NaN : parseFloat(v));
+  const [pPart = '', tbPart = ''] = String(f.status || '').split('|');
+  const ps = pPart.split(','), tbs = tbPart.split(',');
+  const d = [];
+  for (let m = 0; m < N; m++) d.push([num(f['field' + (2 * m + 1)]), num(f['field' + (2 * m + 2)]), num(tbs[m]), num(ps[m])]);
+  return d;
+}
+class CloudSource {
+  constructor(onText, onClose) { this.onText = onText; this.onClose = onClose; this.label = 'Cloud'; this.lastId = 0; this.fails = 0; }
+  url(results) {
+    const key = S.cloud.readKey ? '&api_key=' + encodeURIComponent(S.cloud.readKey.trim()) : '';
+    return 'https://api.thingspeak.com/channels/' + encodeURIComponent(String(S.cloud.channel).trim()) +
+      '/feeds.json?results=' + results + '&status=true' + key;
+  }
+  async fetchFeeds(results) {
+    const r = await fetch(this.url(results), { cache: 'no-store' });
+    if (!r.ok) throw new Error('ThingSpeak ตอบกลับ HTTP ' + r.status);
+    const j = await r.json();
+    if (!j || !Array.isArray(j.feeds)) throw new Error('อ่าน Channel ไม่ได้ ตรวจ Channel ID และ Read API Key (ถ้า Channel เป็น Private)');
+    return j;
+  }
+  ingest(feeds) {
+    let added = 0;
+    for (const f of feeds) {
+      if (!(f.entry_id > this.lastId)) continue;
+      this.lastId = f.entry_id;
+      addSample(parseFeed(f), Date.parse(f.created_at), NaN);
+      added++;
+    }
+    return added;
+  }
+  async open() {
+    if (!/^\d+$/.test(String(S.cloud.channel || '').trim())) {
+      const e = new Error('ยังไม่ได้ใส่ Channel ID ของ ThingSpeak (ตั้งได้ในแท็บ อุปกรณ์ / WiFi)');
+      e.name = 'ConfigError';
+      throw e;
+    }
+    const j = await this.fetchFeeds(8000);
+    this.label = 'Cloud · ' + (j.channel && j.channel.name ? j.channel.name : 'ThingSpeak #' + S.cloud.channel);
+    if (store.t.length) {
+      clearStore();
+      logLine('ล้างข้อมูลเดิมในหน้าเว็บ เพื่อแสดงข้อมูลจาก Cloud', 'sys');
+    }
+    const n = this.ingest(j.feeds);
+    logLine('โหลดข้อมูลย้อนหลังจาก ThingSpeak ' + n.toLocaleString() + ' จุด', 'sys');
+    this.timer = setInterval(() => this.poll(), 15000);
+  }
+  async poll() {
+    try {
+      const j = await this.fetchFeeds(30);
+      if (this.ingest(j.feeds)) scheduleRender();
+      this.fails = 0;
+    } catch (e) {
+      if (++this.fails === 3) logLine('ดึงข้อมูลจาก Cloud ไม่ได้: ' + e.message, 'sys');
+    }
+  }
+  async send() { logLine('โหมด Cloud ส่งคำสั่งถึงบอร์ดไม่ได้ ต้องเชื่อมต่อผ่าน USB หรือ Bluetooth', 'sys'); }
+  async close() { clearInterval(this.timer); }
+}
+
 // ===================== รับบรรทัดจากอุปกรณ์ =====================
+// เวลาของแต่ละตัวอย่างคิดจากนาฬิกาของบอร์ด (ms) เทียบกับนาฬิกาคอม
+// เบราว์เซอร์อาจรับข้อมูลช้าเป็นช่วงๆ (เช่นตอนสลับไปแท็บอื่น) ถ้าใช้เวลาตอนที่รับ ข้อมูลจะดูเหมือนขาดหายแล้วมากองรวมกัน
+const devClock = { off: null, lastDev: -Infinity };
+function resetDevClock() { devClock.off = null; devClock.lastDev = -Infinity; }
+function sampleTime(devMs, now) {
+  if (!isNum(devMs)) return now;
+  const off = now - devMs;
+  if (devClock.off === null || devMs < devClock.lastDev) devClock.off = off;   // ตัวอย่างแรก หรือบอร์ดรีสตาร์ต
+  else devClock.off = Math.min(devClock.off, off);                              // ข้อมูลที่มาถึงเร็วที่สุดบอกเวลาจริงได้ดีที่สุด
+  devClock.lastDev = devMs;
+  return devMs + devClock.off;
+}
 function handleLine(line, tMs, silent) {
   const text = line.trim();
   if (!text) return;
@@ -1278,7 +1450,7 @@ function handleLine(line, tMs, silent) {
     let obj = null;
     try { obj = JSON.parse(text); } catch (e) { obj = null; }
     if (obj && Array.isArray(obj.d)) {
-      addSample(obj.d, tMs ?? Date.now(), isNum(obj.ms) ? obj.ms : NaN);
+      addSample(obj.d, tMs ?? sampleTime(obj.ms, Date.now()), isNum(obj.ms) ? obj.ms : NaN);
       if (!silent) {
         if (S.showJson) logLine(text, 'in');
         scheduleRender();
@@ -1292,6 +1464,26 @@ function handleLine(line, tMs, silent) {
       updateMeta();
       return;
     }
+    if (obj && obj.wifi) {
+      if (Array.isArray(obj.wifi.scan)) {
+        dev.scan = obj.wifi.scan;
+        dev.scanning = false;
+        if (obj.wifi.error) showNotice('สแกน WiFi ไม่สำเร็จ ลองใหม่อีกครั้ง');
+        renderWifiList();
+      } else {
+        dev.wifi = obj.wifi;
+      }
+      logLine(text, 'in');
+      renderDevice();
+      return;
+    }
+    if (obj && obj.cloud) {
+      dev.cloud = obj.cloud;
+      dev.cloudAt = Date.now();
+      logLine(text, 'in');
+      renderDevice();
+      return;
+    }
   }
   if (!silent) logLine(text, 'in');
 }
@@ -1301,7 +1493,7 @@ let src = null;
 let noDataCheck = null;
 // เชื่อมต่อแล้วแต่ไม่มีบรรทัดข้อมูล JSON เข้ามา: มักเป็นเพราะบอร์ดยังใช้เฟิร์มแวร์ตัวอื่น
 function checkNoData() {
-  if (!src || !noDataCheck || noDataCheck.warned || src instanceof DemoSource) return;
+  if (!src || !noDataCheck || noDataCheck.warned || src instanceof DemoSource || src instanceof CloudSource) return;
   if (store.t.length > noDataCheck.count) { noDataCheck.warned = true; return; }
   if (Date.now() - noDataCheck.at < 6000) return;
   noDataCheck.warned = true;
@@ -1326,6 +1518,7 @@ function friendlyError(e, kind) {
     return 'ไม่พบ Bluetooth ในคอมพิวเตอร์นี้ หรือ Bluetooth ปิดอยู่';
   }
   if (kind === 'ble' && e && e.name === 'NetworkError') return 'เชื่อมต่อ Bluetooth ไม่สำเร็จ ลองกดเชื่อมต่อใหม่ หรือรีเซ็ตบอร์ด';
+  if (kind === 'cloud' && e && e.name === 'TypeError') return 'ติดต่อ ThingSpeak ไม่ได้ ตรวจการเชื่อมต่ออินเทอร์เน็ต';
   if (e && e.name === 'SecurityError') return 'เบราว์เซอร์ไม่อนุญาต: ต้องเปิดหน้านี้ผ่าน http://localhost (ใช้ไฟล์ start-dashboard.bat)';
   return msg;
 }
@@ -1344,8 +1537,12 @@ async function connect() {
   };
   const s = kind === 'serial' ? new SerialSource(onText, onClose)
     : kind === 'ble' ? new BleSource(onText, onClose)
+    : kind === 'cloud' ? new CloudSource(onText, onClose)
     : new DemoSource(onText, onClose);
+  if (!(s instanceof CloudSource)) { dev.wifi = null; dev.cloud = null; dev.scan = null; renderDevice(); renderWifiList(); }
   setConn('busy', 'กำลังเชื่อมต่อ…');
+  resetDevClock();
+  store.info = null;
   try {
     await s.open();
     src = s;
@@ -1353,8 +1550,10 @@ async function connect() {
     setConn('on', 'เชื่อมต่อแล้ว · ' + s.label);
     logLine('เชื่อมต่อแล้ว: ' + s.label, 'sys');
     scheduleRender(true);
-    await sleep(300);
-    await s.send('?\n');
+    if (!(s instanceof CloudSource)) {
+      await sleep(300);
+      await s.send('?\n');
+    }
   } catch (e) {
     try { await s.close(); } catch (e2) { /* ignore */ }
     src = null;
@@ -1372,10 +1571,126 @@ async function disconnect() {
   setConn('off', 'ยังไม่เชื่อมต่อ');
   logLine('ตัดการเชื่อมต่อแล้ว', 'sys');
 }
-async function sendCommand(cmd) {
-  if (!src) { showNotice('ยังไม่ได้เชื่อมต่ออุปกรณ์'); return; }
-  logLine(cmd, 'out');
-  try { await src.send(cmd + '\n'); } catch (e) { logLine('ส่งไม่สำเร็จ: ' + e.message, 'sys'); }
+// shown = ข้อความที่แสดงใน Console แทนคำสั่งจริง (ซ่อนรหัสผ่านและคีย์)
+async function sendCommand(cmd, shown) {
+  if (!src) { showNotice('ยังไม่ได้เชื่อมต่ออุปกรณ์'); return false; }
+  logLine(shown || cmd, 'out');
+  try {
+    await src.send(cmd + '\n');
+    return true;
+  } catch (e) {
+    logLine('ส่งไม่สำเร็จ: ' + e.message, 'sys');
+    return false;
+  }
+}
+
+// ===================== อุปกรณ์: WiFi และ Cloud ของบอร์ด =====================
+const dev = { wifi: null, scan: null, scanning: false, cloud: null, cloudAt: 0, join: null };
+const WIFI_TEXT = {
+  connected: 'เชื่อมต่อแล้ว', connecting: 'กำลังเชื่อมต่อ…', disconnected: 'ยังไม่ได้เชื่อมต่อ',
+  no_ssid: 'ไม่พบ WiFi นี้', failed: 'เชื่อมต่อไม่สำเร็จ', none: 'ยังไม่ได้ตั้งค่า',
+};
+function wifiReasonText(r) {
+  if ([2, 15, 202, 204].includes(r)) return 'รหัสผ่านอาจไม่ถูกต้อง';
+  if (r === 201) return 'ไม่พบ WiFi นี้ (อยู่นอกระยะ หรือเป็น 5 GHz)';
+  if (r === 200) return 'สัญญาณหลุด';
+  return r ? 'รหัสข้อผิดพลาด ' + r : '';
+}
+function signalBars(rssi) {
+  return rssi >= -55 ? '▂▄▆█' : rssi >= -67 ? '▂▄▆ ' : rssi >= -78 ? '▂▄  ' : '▂   ';
+}
+function boardSource() {
+  if (src && !(src instanceof CloudSource)) return true;
+  showNotice('ต้องเชื่อมต่อบอร์ดผ่าน USB หรือ Bluetooth ก่อน จึงจะตั้งค่าบอร์ดได้');
+  return false;
+}
+function renderDevice() {
+  const w = dev.wifi;
+  if (w) {
+    const reason = w.status !== 'connected' ? wifiReasonText(w.reason) : '';
+    $('#wfStatus').textContent = (WIFI_TEXT[w.status] || w.status) + (reason ? ' · ' + reason : '');
+    $('#wfSsid').textContent = w.ssid || '—';
+    $('#wfIp').textContent = w.ip || '—';
+    $('#wfRssi').textContent = isNum(w.rssi) ? signalBars(w.rssi).trim() + '  ' + w.rssi + ' dBm' : '—';
+  } else {
+    for (const id of ['#wfStatus', '#wfSsid', '#wfIp', '#wfRssi']) $(id).textContent = '—';
+  }
+  const c = dev.cloud;
+  if (c) {
+    $('#clKey').textContent = c.key ? 'ตั้งแล้ว (…' + (c.key4 || '') + ')' : 'ยังไม่ได้ตั้ง (ไม่ส่งขึ้น Cloud)';
+    let last = 'ยังไม่ได้ส่ง';
+    if (isNum(c.code)) {
+      const age = Math.round((c.age || 0) + (Date.now() - dev.cloudAt) / 1000);
+      if (c.code === 200 && c.entry > 0) last = 'สำเร็จ #' + c.entry + ' · ' + age + ' วินาทีที่แล้ว';
+      else if (c.code === 200) last = 'ThingSpeak ปฏิเสธ (คีย์ผิด หรือส่งถี่เกิน)';
+      else if (c.code === -10) last = 'ยังไม่มี WiFi';
+      else last = 'ไม่สำเร็จ (code ' + c.code + ') · ' + age + ' วินาทีที่แล้ว';
+    }
+    $('#clLast').textContent = last;
+    $('#clHeap').textContent = isNum(c.heap) ? Math.round(c.heap / 1024) + ' KB' : '—';
+  } else {
+    for (const id of ['#clKey', '#clLast', '#clHeap']) $(id).textContent = '—';
+  }
+}
+function renderWifiList() {
+  const host = $('#wifiList');
+  host.replaceChildren();
+  if (dev.scanning) { host.append(mk('div', 'note', 'กำลังสแกน…')); return; }
+  if (!dev.scan) return;
+  if (!dev.scan.length) { host.append(mk('div', 'note', 'ไม่พบ WiFi 2.4 GHz บริเวณนี้')); return; }
+  for (const n of dev.scan) {
+    const b = mk('button');
+    b.type = 'button';
+    b.append(mk('span', 'ssid', n.s), mk('span', 'sig', (n.l ? '🔒 ' : '') + signalBars(n.r) + ' ' + n.r + ' dBm'));
+    b.addEventListener('click', () => openJoin(n));
+    host.append(b);
+  }
+}
+function openJoin(n) {
+  dev.join = n;
+  $('#joinName').textContent = n.s;
+  $('#joinPassRow').hidden = !n.l;
+  $('#wifiPass').value = '';
+  $('#wifiJoin').hidden = false;
+  if (n.l) $('#wifiPass').focus();
+}
+async function joinWifi() {
+  if (!dev.join || !boardSource()) return;
+  const ssid = dev.join.s, pass = dev.join.l ? $('#wifiPass').value : '';
+  if (dev.join.l && pass.length < 8) { showNotice('รหัสผ่าน WiFi ต้องยาวอย่างน้อย 8 ตัวอักษร'); return; }
+  const payload = JSON.stringify({ s: ssid, p: pass });
+  const ok = await sendCommand('WSET ' + payload, 'WSET ' + JSON.stringify({ s: ssid, p: pass ? '••••••••' : '' }));
+  if (!ok) return;
+  $('#wifiPass').value = '';
+  $('#wifiJoin').hidden = true;
+  dev.wifi = { ssid, status: 'connecting' };
+  renderDevice();
+}
+function bindDevicePanel() {
+  $('#btnScan').addEventListener('click', async () => {
+    if (!boardSource()) return;
+    dev.scanning = true;
+    renderWifiList();
+    await sendCommand('WSCAN');
+    setTimeout(() => { if (dev.scanning) { dev.scanning = false; dev.scan = []; renderWifiList(); } }, 15000);
+  });
+  $('#btnForget').addEventListener('click', () => { if (boardSource()) sendCommand('WFORGET'); });
+  $('#btnJoin').addEventListener('click', joinWifi);
+  $('#wifiPass').addEventListener('keydown', e => { if (e.key === 'Enter') joinWifi(); });
+  $('#btnJoinCancel').addEventListener('click', () => { $('#wifiPass').value = ''; $('#wifiJoin').hidden = true; });
+  $('#showPass').addEventListener('change', e => { $('#wifiPass').type = e.target.checked ? 'text' : 'password'; });
+  $('#btnSaveKey').addEventListener('click', async () => {
+    if (!boardSource()) return;
+    const key = $('#cloudKey').value.trim();
+    if (!/^[A-Za-z0-9]{16}$/.test(key)) { showNotice('Write API Key ของ ThingSpeak ต้องเป็นตัวอักษร/ตัวเลข 16 ตัว'); return; }
+    if (await sendCommand('CKEY ' + key, 'CKEY ••••••••••••' + key.slice(-4))) $('#cloudKey').value = '';
+  });
+  $('#btnClearKey').addEventListener('click', () => { if (boardSource()) sendCommand('CKEY'); });
+  for (const [id, key] of [['#tsChannel', 'channel'], ['#tsReadKey', 'readKey']]) {
+    const el = $(id);
+    el.value = S.cloud[key] || '';
+    el.addEventListener('change', () => { S.cloud[key] = el.value.trim(); saveSettings(); });
+  }
 }
 
 // ===================== Console =====================
@@ -1718,7 +2033,8 @@ function setTab(name) {
   }
   for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
   $('#modeWrap').hidden = !(name === 'overview' || name === 'derived');
-  $('#filters').hidden = name === 'console' || name === 'about';
+  $('#filters').hidden = ['console', 'about', 'device'].includes(name);
+  if (name === 'device') renderDevice();
   for (const c of allCharts) c.clearHover();
   scheduleRender(true);
 }
@@ -1815,11 +2131,11 @@ async function checkSupport() {
   } else if (!window.isSecureContext) {
     notes.push('หน้านี้ไม่ได้เปิดผ่าน https:// หรือ localhost เบราว์เซอร์จึงไม่ให้ใช้ USB/Bluetooth · ตอนนี้ใช้โหมด Demo ได้');
   } else if (ios && !hasBle) {
-    notes.push('Safari และ Chrome บน iPhone ใช้ Bluetooth กับหน้าเว็บไม่ได้ ให้เปิดลิงก์นี้ด้วยแอป Bluefy – Web BLE Browser (ฟรีใน App Store)');
+    notes.push('บน iPhone ดูข้อมูลผ่านโหมด Cloud ได้เลย · ถ้าจะเชื่อม Bluetooth กับบอร์ดโดยตรง ให้เปิดลิงก์นี้ด้วยแอป Bluefy – Web BLE Browser (ฟรีใน App Store)');
   } else if (mobile && !hasBle) {
-    notes.push('เบราว์เซอร์นี้ไม่รองรับ Bluetooth ให้เปิดลิงก์นี้ด้วย Google Chrome');
+    notes.push('เบราว์เซอร์นี้ไม่รองรับ Bluetooth ใช้ได้เฉพาะโหมด Cloud · ถ้าจะเชื่อมบอร์ดโดยตรงให้เปิดด้วย Google Chrome');
   } else if (!hasSerial && !hasBle) {
-    notes.push('เบราว์เซอร์นี้ไม่รองรับ Web Serial / Web Bluetooth ให้เปิดด้วย Google Chrome หรือ Microsoft Edge บนคอมพิวเตอร์');
+    notes.push('เบราว์เซอร์นี้ใช้ได้เฉพาะโหมด Cloud · ถ้าจะเชื่อมบอร์ดผ่าน USB/Bluetooth ให้เปิดด้วย Google Chrome หรือ Microsoft Edge');
   }
   if (hasBle && navigator.bluetooth.getAvailability) {
     try {
@@ -1828,7 +2144,7 @@ async function checkSupport() {
   }
   const saved = sel.querySelector(`[value="${S.source}"]`);
   if (saved && !saved.disabled) sel.value = S.source;
-  else sel.value = hasSerial ? 'serial' : hasBle ? 'ble' : 'demo';
+  else sel.value = hasSerial ? 'serial' : S.cloud.channel ? 'cloud' : hasBle ? 'ble' : 'demo';
   if (notes.length) showNotice(notes.join(' '));
 }
 
@@ -1880,6 +2196,7 @@ function init() {
   $('#showJson').addEventListener('change', e => { S.showJson = e.target.checked; saveSettings(); });
   $('#btnClearConsole').addEventListener('click', () => consoleEl.replaceChildren());
   bindSettings();
+  bindDevicePanel();
 
   if ('serial' in navigator) {
     navigator.serial.addEventListener('disconnect', e => {
@@ -1898,13 +2215,14 @@ function init() {
   checkSupport();
   setInterval(() => {
     if (activeTab === 'overview') updateCards();
+    if (activeTab === 'device') renderDevice();
     checkNoData();
   }, 1000);
   logLine('พร้อมใช้งาน เลือกการเชื่อมต่อแล้วกด "เชื่อมต่อ"', 'sys');
 }
 
 // สำหรับทดสอบจาก DevTools
-window.dash = { handleLine, store, Phys, statsOf, adevOf, expandedU, buildCsv, clearStore };
+window.dash = { handleLine, store, Phys, statsOf, adevOf, expandedU, buildCsv, clearStore, parseFeed };
 init();
 </script>
 </body>
